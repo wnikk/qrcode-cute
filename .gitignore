@@ -1,6 +1,5 @@
-node_modules/
 .DS_Store
-
-# Local copy of the koloqr.com generator bundle these renderers came from.
-# Kept out of the repo: 20 MB of fonts and frame artwork that nothing here uses.
-.reference/
+.idea
+/.phpunit.*
+/vendor/
+/composer.lock

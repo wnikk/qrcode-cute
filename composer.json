@@ -1,0 +1,85 @@
+{
+    "name": "wnikk/qrcode-cute",
+    "description": "QR codes in the shape of a square, circle, triangle or hexagon, as SVG, PNG and WebP. Pure PHP, no dependencies.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "qr",
+        "qrcode",
+        "qr-code",
+        "svg",
+        "png",
+        "generator",
+        "qr-code-generator",
+        "circular-qr-code",
+        "rounded-qr",
+        "qr-design",
+        "qr-shapes",
+        "webp",
+        "laravel",
+        "vcard",
+        "wifi"
+    ],
+    "homepage": "https://github.com/wnikk/qrcode-cute",
+    "support": {
+        "issues": "https://github.com/wnikk/qrcode-cute/issues",
+        "source": "https://github.com/wnikk/qrcode-cute"
+    },
+    "require": {
+        "php": ">=8.0"
+    },
+    "require-dev": {
+        "laravel/pint": "^1.0",
+        "orchestra/testbench": "^7.0 || ^8.0 || ^9.0 || ^10.0",
+        "phpstan/phpstan": "^2.0",
+        "phpunit/phpunit": "^9.6 || ^10.5 || ^11.5 || ^12.0"
+    },
+    "suggest": {
+        "ext-zlib": "Compresses PNG output. Without it, PNG files are written uncompressed.",
+        "illuminate/support": "Laravel integration: the service provider registers the generator."
+    },
+    "autoload": {
+        "psr-4": {
+            "Wnikk\\QrCodeCute\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Wnikk\\QrCodeCute\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Wnikk\\QrCodeCute\\Laravel\\QrCodeServiceProvider"
+            ]
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "analyse": "phpstan analyse --memory-limit=1G",
+        "format": "pint",
+        "docs": [
+            "@php docs/example1-shapes.php",
+            "@php docs/example2-frames.php",
+            "@php docs/example3-patterns.php",
+            "@php docs/example4-eyes.php",
+            "@php docs/example5-content-types.php",
+            "@php docs/example6-error-correction.php"
+        ]
+    },
+    "archive": {
+        "exclude": [
+            "/docs",
+            "/tests",
+            "/phpunit.xml.dist",
+            "/phpstan.neon.dist",
+            "/pint.json"
+        ]
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

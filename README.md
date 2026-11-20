@@ -1,177 +1,503 @@
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23999162.svg)](https://doi.org/10.5281/zenodo.23999162)
+# qrcode-cute
 
-# qr-code-shapes
+[![PHP](https://img.shields.io/badge/php-%E2%89%A5%208.0-777bb4)](composer.json)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Dependencies](https://img.shields.io/badge/dependencies-none-blue)](composer.json)
 
-QR codes that are not square. An open-source QR code generator for JavaScript
-that draws the code into a circle, a triangle or a hexagon and hands back SVG —
-no dependencies, no canvas, and the same output in Node as in the browser.
+qrcode-cute is a PHP library that makes QR codes in four shapes: square,
+circle, triangle and hexagon. The output is SVG, PNG or WebP. The library is
+pure PHP. It does not use Composer packages, GD or Imagick.
 
-![Four QR codes on a green background: a purple circle with a double ring, a red square with a wavy edge, a black hexagon with a wavy edge, and a green triangle](docs/shapes.png)
+![Four QR codes on a green band: a purple circle with a double ring, a red square with a wavy frame, a black hexagon with a wavy frame, and a green triangle with a thin frame](docs/example1-shapes.png)
 
-**[Make a QR code on koloqr.com →](https://koloqr.com)**
+A shaped code has the real matrix in the centre. Decorative modules fill the
+remaining area of the shape. The default error correction level is H. This
+level helps the scanner to read the code through the decoration.
 
-Most QR libraries give you a grid of black squares and a colour option. This one
-draws the code into an outline — a disc, a triangle, a hexagon — culling the
-modules that fall outside and filling the edge so the shape reads cleanly. The
-codes still scan; error correction is fixed at level H, which is what buys the
-room to cut the corners off.
+Features:
 
-These are the renderers behind [koloqr.com](https://koloqr.com), pulled out into
-a library. If you just want a code rather than a dependency, the site is free
-and needs no signup — and it has the logos, the other 44 frames and the PDF and
-EPS export that [did not belong here](#what-this-does-not-include).
+- Four shapes: square, circle, triangle and hexagon.
+- Four frames for each shape: none, thin, double and organic.
+- Thirteen module patterns and three eye shapes. You can set the colour of each part.
+- Error correction levels L, M, Q and H. Versions 1 to 40, with a maximum of 2953 bytes.
+- SVG, PNG and lossless WebP output. The raster renderer is written in PHP and has anti-aliasing.
+- Content types: Wi-Fi, e-mail, phone, SMS, geographic location, vCard, calendar event, Bitcoin, Litecoin and Ethereum.
+- Use without Composer, with Composer, or in Laravel.
+- The same input always gives the same output.
 
-## Install
+## Contents
 
-```sh
-npm install qr-code-shapes
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [Usage](#usage)
+- [Content types](#content-types)
+- [Generator](#generator)
+- [Laravel](#laravel)
+- [Options](#options)
+- [Error correction](#error-correction)
+- [Shapes, frames, patterns and eyes](#shapes-frames-patterns-and-eyes)
+- [Raster output](#raster-output)
+- [Errors](#errors)
+- [Scan results](#scan-results)
+- [Examples](#examples)
+- [Development](#development)
+- [License](#license)
+
+## Requirements
+
+- PHP 8.0 or a newer version.
+- The `ext-zlib` extension is optional. With zlib, the library compresses the
+  PNG files. Without zlib, the PNG files have no compression, but they are
+  correct. Most PHP builds have zlib. The WebP encoder does not need zlib.
+
+## Installation
+
+### With Composer
+
+```bash
+composer require wnikk/qrcode-cute
 ```
 
-Or use it straight from source — it is plain ES modules, no build step.
+```php
+require 'vendor/autoload.php';
+```
+
+### Without Composer
+
+Copy the repository to your project. Then load its autoloader:
+
+```php
+require '/path/to/qrcode-cute/src/autoload.php';
+```
+
+The autoloader loads the classes of the `Wnikk\QrCodeCute\` namespace from
+the `src/` directory. Only the `src/` directory is necessary.
+
+## Quick start
+
+```php
+use Wnikk\QrCodeCute\QrCode;
+
+$qr = new QrCode('https://example.com', [
+    'shape'   => 'circle',
+    'frame'   => 'organic',
+    'pattern' => 'rounded',
+    'color'   => '#1d4ed8',
+]);
+
+$qr->save('qr.svg');          // The file extension sets the format.
+$qr->save('qr.png', 1024);    // A PNG file, 1024 x 1024 pixels.
+$qr->save('qr.webp', 1024);   // A lossless WebP file.
+```
 
 ## Usage
 
-```js
-import { renderQR } from 'qr-code-shapes';
+### SVG
 
-const svg = renderQR({ text: 'https://example.com' });
-// → '<svg xmlns="..." viewBox="0 0 380 380">…</svg>'
+```php
+$svg = $qr->toSvg();          // '<svg xmlns="..." viewBox="0 0 440 440">…</svg>'
+$svg = $qr->toSvg(true);      // Adds an XML declaration for a standalone file.
 ```
 
-`renderQR` returns a standalone SVG document as a string. Write it to a file,
-inline it, hand it to a template — it has no runtime dependencies, so it works
-the same in Node, in a worker, or during server rendering.
+The result is a complete `<svg>` element. You can put it in HTML, keep it in
+a file, or send it as `image/svg+xml`. A `QrCode` object also converts to a
+string. Thus `echo $qr;` writes the SVG.
 
-```js
-const svg = renderQR({
-  text: 'https://example.com',
-  shape: 'circle',
-  frame: 'organic',
-  pattern: 'dots',
-  color: '#1d4ed8',
-  background: '#eff6ff',
-});
+### PNG and WebP
+
+```php
+$png = $qr->toPng();          // The default size is 1024 x 1024 pixels.
+$png = $qr->toPng(512);       // The size can be 1 to 8192 pixels.
+$webp = $qr->toWebp(512);     // Lossless WebP. Transparency is kept.
+
+$data = $qr->render('webp', 512);     // The format as a parameter: svg, png or webp.
+$type = QrCode::mimeType('webp');     // 'image/webp'
 ```
 
-### In a page
+### Static methods
 
-```js
-import { renderQR } from 'qr-code-shapes';
-import { toSVGBlob, toPNGBlob, download } from 'qr-code-shapes/browser';
-
-const svg = renderQR({ text: 'https://example.com', shape: 'hexagon' });
-document.querySelector('#preview').innerHTML = svg;
-
-download(toSVGBlob(svg), 'qr-code.svg');
-download(await toPNGBlob(svg, { size: 1024 }), 'qr-code.png');
+```php
+$svg = QrCode::svg('https://example.com', ['shape' => 'hexagon']);
+$png = QrCode::png('https://example.com', ['shape' => 'hexagon'], 600);
+$webp = QrCode::webp('https://example.com', ['shape' => 'hexagon'], 600);
 ```
 
-The `browser` entry point is separate because rasterizing needs a canvas. The
-main entry never touches the DOM.
+### Data URIs
 
-### Editing the output
+```php
+echo '<img src="'.$qr->toDataUri('svg').'" alt="QR code">';
+echo '<img src="'.$qr->toDataUri('webp', 300).'" alt="QR code">';
+```
 
-`renderQRNode` returns the SVG as a small node tree instead of a string, if you
-want to reach in before serializing:
+### HTTP response
 
-```js
-import { renderQRNode, serialize } from 'qr-code-shapes';
+```php
+header('Content-Type: '.QrCode::mimeType('png'));
+header('Cache-Control: public, max-age=86400');
+echo QrCode::png($url, ['shape' => 'circle'], 512);
+```
 
-const node = renderQRNode({ text: 'https://example.com' });
-node.setAttribute('role', 'img');
-node.setAttribute('aria-label', 'Link to example.com');
-const svg = serialize(node);
+The same options always give the same image. Thus you can keep the response
+in a cache.
+
+### Variants of one design
+
+The `with()` method gives a copy with changed options. The original object
+does not change.
+
+```php
+$brand = new QrCode('https://example.com', ['color' => '#be123c', 'frame' => 'thin']);
+
+foreach (QrCode::SHAPES as $shape) {
+    $brand->with(['shape' => $shape])->save("qr-$shape.png", 800);
+}
+```
+
+### Changes to the SVG tree
+
+The `toSvgNode()` method gives the SVG as a tree of nodes. Change the tree,
+then serialize it with `toXml()`. The raster renderer also draws a changed
+tree.
+
+```php
+use Wnikk\QrCodeCute\Raster\Rasterizer;
+
+$node = $qr->toSvgNode();
+$node->setAttribute('role', 'img');
+$node->setAttribute('aria-label', 'Link to example.com');
+
+$svg = $node->toXml();
+$png = Rasterizer::png($node, 800);
+$webp = Rasterizer::webp($node, 800);
+```
+
+### The module matrix
+
+```php
+$matrix = $qr->getMatrix();   // bool[][]: the value true is a dark module.
+```
+
+## Content types
+
+The `Payload` class makes the text for the usual content types. Each method
+gives a string. Give the string to `QrCode` or to `Generator`. Use named
+arguments for the optional parameters. A bad value causes an
+`InvalidOptionException`.
+
+```php
+use Wnikk\QrCodeCute\Payload;
+use Wnikk\QrCodeCute\QrCode;
+
+$qr = new QrCode(Payload::wifi('Office', 'secret'), ['shape' => 'circle']);
+```
+
+| Method | Example | Result |
+| --- | --- | --- |
+| `wifi()` | `Payload::wifi('Office', 'secret')` | `WIFI:T:WPA;S:Office;P:secret;;` |
+| `email()` | `Payload::email('info@example.com', subject: 'Hello')` | `mailto:info@example.com?subject=Hello` |
+| `phone()` | `Payload::phone('+1 555 123 4567')` | `tel:+15551234567` |
+| `sms()` | `Payload::sms('+15551234567', 'Meet at 5')` | `SMSTO:+15551234567:Meet at 5` |
+| `geo()` | `Payload::geo(55.751244, 37.618423)` | `geo:55.751244,37.618423` |
+| `vcard()` | `Payload::vcard(firstName: 'Ivan', lastName: 'Petrov', phone: '+15551234567')` | `BEGIN:VCARD` … `END:VCARD` (vCard 3.0) |
+| `calendar()` | `Payload::calendar('Meeting', '2026-12-01 10:00 UTC', location: 'Room 1')` | `BEGIN:VEVENT` … `END:VEVENT` |
+| `bitcoin()` | `Payload::bitcoin('bc1q…', 0.0012, label: 'Shop')` | `bitcoin:bc1q…?amount=0.0012&label=Shop` (BIP 21) |
+| `litecoin()` | `Payload::litecoin('ltc1q…', '1.5')` | `litecoin:ltc1q…?amount=1.5` |
+| `ethereum()` | `Payload::ethereum('0x8920…43e7', '1000000000000000000', chainId: 1)` | `ethereum:0x8920…43e7@1?value=1000000000000000000` (EIP 681) |
+
+Some details:
+
+- `wifi()`: the encryption is `WPA`, `WEP` or `nopass`. An empty password gives an open network. The method escapes the characters `\ ; , : "`.
+- `email()`: `cc` and `bcc` accept one address or a list. The subject and the body are percent-encoded.
+- `phone()` and `sms()`: the methods remove spaces and the characters `( ) .`.
+- `vcard()`: the parameters are `name`, `firstName`, `lastName`, `organization`, `title`, `phone`, `email`, `url`, `address` and `note`. `phone` and `email` accept one value or a list.
+- `calendar()`: `start` and `end` accept a `DateTimeInterface` or a date string. A time changes to UTC. Without `end`, an event takes one hour. With `allDay: true`, the event uses dates only.
+- `bitcoin()` and `litecoin()`: give the amount as a string for an exact decimal value.
+- `ethereum()`: the value is in wei, as an integer. Give a large value as a string.
+
+## Generator
+
+`Generator` is a fluent builder. It keeps the options, the size and the
+format for many codes. Each setter gives a new instance. Thus one instance
+can be a shared service.
+
+```php
+use Wnikk\QrCodeCute\Generator;
+
+$generator = (new Generator())
+    ->shape('circle')
+    ->frame('thin')
+    ->color('#1d4ed8')
+    ->format('webp')
+    ->size(512);
+
+$webp = $generator->generate('https://example.com');
+$generator->generate('https://example.com', 'qr.webp');   // Also writes the file.
+$uri = $generator->dataUri('https://example.com');
+$type = $generator->mimeType();                            // 'image/webp'
+```
+
+The setters are: `shape()`, `frame()`, `pattern()`, `eyeShape()`, `color()`,
+`background()`, `eyeColor()`, `frameColor()`, `errorCorrection()`, `seed()`,
+`mask()`, `withOptions()`, `size()` and `format()`. The constructor accepts
+the same values: `new Generator($options, $size, $format)`.
+
+The generator has a method for each content type. These methods have the
+same parameters as the `Payload` methods and give the image data:
+
+```php
+$png = $generator->format('png')->wifi('Office', 'secret');
+$svg = $generator->vcard(firstName: 'Ivan', lastName: 'Petrov', email: 'ivan@example.com');
+```
+
+The `make()` method gives a `QrCode` object with the options of the
+generator.
+
+## Laravel
+
+The library has a service provider. Laravel finds it automatically. The
+provider registers `Generator` in the container as a shared instance. You do
+not need other configuration.
+
+```php
+use Illuminate\Http\Response;
+use Wnikk\QrCodeCute\Generator;
+
+class QrCodeController
+{
+    public function show(Generator $generator): Response
+    {
+        $generator = $generator->shape('hexagon')->format('png')->size(512);
+
+        return response($generator->generate(url('/')))
+            ->header('Content-Type', $generator->mimeType());
+    }
+}
+```
+
+In a Blade template, write the SVG without escaping:
+
+```blade
+{!! app(\Wnikk\QrCodeCute\Generator::class)->generate($url) !!}
+```
+
+To set your design in one location, bind the generator in a service
+provider of your application:
+
+```php
+$this->app->singleton(Generator::class, fn () => new Generator(['shape' => 'circle', 'color' => '#1d4ed8']));
 ```
 
 ## Options
 
-| Option | Type | Default | Notes |
+All options are optional. An unknown option or value causes an exception.
+The library does not replace a bad value with a default.
+
+| Option | Type | Default | Values |
 | --- | --- | --- | --- |
-| `text` | string | — | Required. What the code encodes. |
 | `shape` | string | `'square'` | `square`, `circle`, `triangle`, `hexagon` |
 | `frame` | string | `'none'` | `none`, `thin`, `double`, `organic` |
-| `pattern` | string | `'dots'` | Module shape — see below |
+| `pattern` | string | `'dots'` | The module shape. Refer to [Patterns](#patterns). |
 | `eyeShape` | string | `'circle'` | `circle`, `rounded`, `square` |
-| `color` | string | `'#000000'` | Module colour |
-| `background` | string | `'#ffffff'` | Any CSS colour, or `'transparent'` |
-| `eyeColor` | string | `color` | Finder eyes, if you want them to differ |
-| `frameColor` | string | `color` | Frame, if you want it to differ |
-| `seed` | number | `0` | Seeds the scatter in the `star` pattern |
-| `mask` | number | auto | Force a QR mask, 0–7. Changes how the code looks without changing what it says. |
+| `color` | string | `'#000000'` | The module colour. |
+| `background` | string | `'#ffffff'` | The background colour, or `'transparent'`. |
+| `eyeColor` | string\|null | `null` | The colour of the finder eyes. The value `null` gives `color`. |
+| `frameColor` | string\|null | `null` | The colour of the frame. The value `null` gives `color`. |
+| `errorCorrection` | string | `'H'` | `L`, `M`, `Q`, `H`. Refer to [Error correction](#error-correction). |
+| `seed` | int\|float | `0` | The seed for the `star` pattern and for the decorative fill of shaped codes. |
+| `mask` | int\|null | `null` | A QR mask, 0 to 7. The mask changes the look, not the content. The value `null` lets the encoder select the mask. |
 
-![Six square QR codes showing the dots, rounded, stars, hearts, triangles and bar-v patterns](docs/patterns.png)
+The lists of values are class constants. Use them to make a form:
 
-Patterns: `dots`, `square`, `small`, `star`, `rounded`, `stars`, `hearts`,
-`triangles`, `diamonds`, `pill-h`, `pill-v`, `bar-h`, `bar-v`. The `rounded`,
-`pill-*` and `bar-*` patterns merge neighbouring modules into one shape rather
-than drawing each on its own.
-
-Every frame works with every shape — the artwork follows the outline.
-
-The lists are exported, so a UI can enumerate them instead of hard-coding:
-
-```js
-import { SHAPES, PATTERNS, EYE_SHAPES, FRAMES } from 'qr-code-shapes';
+```php
+QrCode::SHAPES; QrCode::FRAMES; QrCode::PATTERNS; QrCode::EYE_SHAPES;
+QrCode::ERROR_CORRECTION_LEVELS; QrCode::FORMATS; QrCode::DEFAULTS;
 ```
 
-Bad values throw rather than silently falling back, so a typo in `shape` shows
-up immediately instead of quietly rendering a square.
+The encoder writes the payload as bytes. Give the text in UTF-8.
 
-## Will they scan?
+## Error correction
 
-Yes. Every shape, frame and pattern combination in this repo is decoded during
-development with the platform barcode reader, and the tests fail if a code
-stops producing well-formed output.
+The error correction level sets how much damage the code can have. A lower
+level holds more data in a code of the same size. The encoder uses the
+smallest version (1 to 40) that holds the payload.
 
-Two things are worth knowing. Cutting a QR into a circle or triangle throws away
-real modules — level H error correction absorbs it, but it is why the error
-correction level is not configurable here. And contrast is yours to get right:
-a pale code on a pale background will render happily and scan badly. Keep the
-code clearly darker than the background, and test the actual printed size.
+| Level | Damage that the code can have | Maximum payload (version 40) |
+| --- | --- | --- |
+| `L` | approximately 7% | 2953 bytes |
+| `M` | approximately 15% | 2331 bytes |
+| `Q` | approximately 25% | 1663 bytes |
+| `H` (default) | approximately 30% | 1273 bytes |
 
-## Local playground
+If the payload is too long for the level, the library causes a
+`DataTooLongException`. The message tells you if a lower level can hold the
+payload.
 
-`demo/` is a single page that wires every option to a control, for trying a
-change without writing a script. It is a development tool, not a hosted
-service — if you want a generator to actually use, that is
-[koloqr.com](https://koloqr.com).
-
-```sh
-git clone https://github.com/koloqr/qr-code-shapes.git
-cd qr-code-shapes
-npm run demo    # → http://localhost:8000/demo/
-npm test
+```php
+$qr = new QrCode($longText, ['errorCorrection' => 'L', 'pattern' => 'square']);
+$qr->save('long.png', 2400);
 ```
 
-There is nothing to install for either. The page imports the library straight
-from `src/`, so it cannot drift out of date — and that is also why it needs a
-server rather than opening the file, since browsers do not load ES modules over
-`file://`.
+A large version has many small modules. For a large version, use the
+`square` pattern and a large image size. Refer to [Scan results](#scan-results).
 
-## What this does not include
+## Shapes, frames, patterns and eyes
 
-[![KoloQR — free QR code generator](docs/koloqr-generator.png)](https://koloqr.com)
+### Shapes
 
-This library is deliberately the core. [koloqr.com](https://koloqr.com) is the
-full generator — free, no signup — and it has the parts that did not belong in a
-rendering library:
+The `square` shape shows only the matrix. The `circle`, `triangle` and
+`hexagon` shapes put the matrix in the outline. Decorative modules in the same
+pattern fill the remaining area. In the triangle, the matrix is in the low
+part, where the triangle is widest.
 
-- 56 frames instead of 12, including ones with `SCAN ME` text set on a curve
-- Logos in the centre — brand marks or your own image
-- Content types beyond a link: email, phone, Wi-Fi, plain text, social profiles
-- PDF, EPS and copy-to-Figma export
-- A live contrast check that tells you when a colour pair will not scan
+### Frames
 
-All of it free and without a signup, if you just need a code rather than a
-dependency.
+All shapes have all frames. The frame follows the outline of the shape. From
+left to right: `none`, `thin`, `double`, `organic`. Each code in the image
+has different colours for the modules, the eyes and the frame.
 
-## Credits
+![The same circular code four times in different colours: without a frame, with a thin ring, with a double ring and with a wavy frame](docs/example2-frames.png)
 
-The QR encoding in `src/encoder.js` is Kazuhiko Arase's
-[QRCode.js](https://github.com/davidshimjs/qrcodejs), MIT licensed, cut down to
-matrix generation. The drawing is original work from
-[koloqr.com](https://koloqr.com).
+### Patterns
+
+![Thirteen square QR codes in a grid, one for each module pattern](docs/example3-patterns.png)
+
+The order of the codes is the order of `QrCode::PATTERNS`, from left to right
+and from top to bottom:
+
+1. `dots`, `square`, `small`, `star`, `rounded`
+2. `stars`, `hearts`, `triangles`, `diamonds`, `pill-h`
+3. `pill-v`, `bar-h`, `bar-v`
+
+The `star` pattern has dots of two sizes. The `seed` option sets their
+positions. The `rounded`, `pill-*` and `bar-*` patterns merge adjacent
+modules into one shape.
+
+### Eye shapes
+
+From left to right: `circle`, `rounded`, `square`. In each code, the
+`eyeColor` is different from the `color`.
+
+![Three square codes in different colours with circular, rounded and square finder eyes](docs/example4-eyes.png)
+
+## Raster output
+
+The raster renderer is a part of the library and is written in PHP. It fills
+each shape with exact horizontal coverage on five sub-scanlines in each pixel
+row. Thus the edges are smooth. The renderer fills adjacent modules of one
+colour together. Thus no thin lines are visible between the modules.
+
+- **Speed:** approximately 0.2 s for a 1024 x 1024 PNG on PHP 8.4. The WebP
+  encoder adds approximately 0.1 s. The time increases with the number of pixels.
+- **Memory:** approximately 4 bytes for each pixel, and approximately 15 MB of
+  working memory. A 1024 x 1024 image uses less than 20 MB.
+- **PNG:** RGB for an opaque image. RGBA for a transparent background.
+- **WebP:** lossless (VP8L), with transparency. The file size is approximately
+  the PNG size.
+- **Colours:** hex (`#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`), `rgb()`,
+  `rgba()`, `hsl()`, `hsla()`, the CSS colour names and `transparent`.
+
+The SVG output accepts all CSS colours. The raster renderer does not know
+some of them, for example `var(--brand)`. For such a colour, the raster
+renderer causes a `RenderException`.
+
+`Rasterizer` also draws a tree that you made or changed. These elements are
+possible: `<svg>`, `<g>`, `<rect>`, `<circle>`, `<ellipse>`, `<line>`,
+`<polyline>`, `<polygon>` and `<path>`. These attributes are possible:
+`transform`, `fill`, `fill-rule`, `stroke`, `stroke-width` and the opacity
+attributes. The renderer does not draw text, gradients, clipping, masks,
+filters or CSS.
+
+## Errors
+
+All exceptions of the library use the interface
+`Wnikk\QrCodeCute\Exception\QrCodeException`.
+
+| Exception | Cause |
+| --- | --- |
+| `InvalidOptionException` | An unknown option or value, an empty text, or a bad content type value. |
+| `DataTooLongException` | The payload is too long for the error correction level. |
+| `RenderException` | The raster renderer does not know a colour, the image size is not correct, or the library cannot write a file. |
+
+```php
+use Wnikk\QrCodeCute\Exception\QrCodeException;
+
+try {
+    $png = QrCode::png($input, $options, 512);
+} catch (QrCodeException $e) {
+    // Show $e->getMessage() to the user.
+}
+```
+
+## Scan results
+
+During development, we made images for each combination of shape, frame,
+pattern and error correction level. The Apple Vision barcode reader decoded
+these images. The table shows the results at level H.
+
+| Payload | Result |
+| --- | --- |
+| Up to approximately 75 bytes (a usual URL) | All shapes, frames, patterns and eye shapes decode. Levels L, M and Q also decode. |
+| Approximately 100 to 190 bytes | The triangle with separate modules (`dots`, `star`, `stars`, `hearts`, `small`, `triangles`) can fail. All other combinations decode. |
+| More than approximately 190 bytes | The circle and the hexagon with `dots`, `star`, `stars` or `hearts` can also fail. The triangle can fail with more patterns. |
+
+The `square` shape decoded with all patterns at all tested lengths, up to 300
+bytes at level H. The merged patterns (`square`, `rounded`, `pill-*`, `bar-*`)
+on the circle and the hexagon also decoded at all tested lengths. For a long
+payload, use one of these combinations.
+
+A version 40 code at level L (2953 bytes) decoded with the `square` shape, the
+`square` pattern and an image size of 2400 pixels. With the `dots` pattern, it
+did not decode.
+
+All content types decoded to the same text that the `Payload` methods make.
+The WebP files decoded with the same result as the PNG files.
+
+Contrast is important. A light code on a light background does not cause an
+error, but the scanner cannot read it easily. Make the code much darker than
+the background. Test the code at the printed size.
+
+## Examples
+
+The [docs/](docs/README.md) directory has six examples. Each example is one
+PHP script and the image that the script makes: shapes, frames, patterns, eye
+shapes, content types and error correction levels.
+
+![The same payload as four square QR codes at the error correction levels L, M, Q and H](docs/example6-error-correction.png)
+
+Make all images again after a change to the drawing:
+
+```bash
+composer docs
+```
+
+## Development
+
+Install the development packages:
+
+```bash
+composer install
+```
+
+Run the tests (PHPUnit, with Orchestra Testbench for the Laravel provider):
+
+```bash
+composer test
+```
+
+Run the static analysis (PHPStan, level 8):
+
+```bash
+composer analyse
+```
+
+Format the code (Laravel Pint, the Laravel preset):
+
+```bash
+composer format
+```
 
 ## License
 
-MIT
+MIT. Refer to [LICENSE](LICENSE). The LICENSE file also gives the original
+authors.

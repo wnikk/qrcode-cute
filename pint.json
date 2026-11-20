@@ -1,0 +1,8 @@
+{
+    "preset": "laravel",
+    "exclude": ["vendor"],
+    "rules": {
+        "declare_strict_types": true,
+        "no_superfluous_phpdoc_tags": false
+    }
+}
