@@ -81,10 +81,8 @@ final class Canvas
     /**
      * Fills polygons in device space.
      *
-     * @param  array  $polygons
-     * @param  bool  $evenOdd  true for the evenodd fill rule, false for nonzero.
-     * @param  array  $color
      * @param  array<int, float[]>  $polygons  Each polygon is a flat list x0, y0, x1, y1, ...; closed implicitly.
+     * @param  bool  $evenOdd  true for the evenodd fill rule, false for nonzero.
      * @param  array{0:int, 1:int, 2:int, 3:float}  $color  r, g, b in 0-255 and alpha in 0-1.
      * @return void
      */
@@ -175,6 +173,7 @@ final class Canvas
                 }
 
                 $xs = [];
+                $dirs = [];
                 $keep = [];
                 foreach ($active as $e) {
                     if ($e[1] <= $sy) {
@@ -182,18 +181,20 @@ final class Canvas
                     }
                     $keep[] = $e;
                     if ($e[0] <= $sy) {
-                        $xs[] = [$e[2] + ($sy - $e[0]) * $e[3], $e[4]];
+                        $xs[] = $e[2] + ($sy - $e[0]) * $e[3];
+                        $dirs[] = $e[4];
                     }
                 }
                 $active = $keep;
                 if (count($xs) < 2) {
                     continue;
                 }
-                usort($xs, static fn (array $a, array $b): int => $a[0] <=> $b[0]);
+                array_multisort($xs, SORT_NUMERIC, $dirs);
 
                 $winding = 0;
                 $start = 0.0;
-                foreach ($xs as [$x, $dir]) {
+                foreach ($xs as $k => $x) {
+                    $dir = $dirs[$k];
                     $was = $winding;
                     $winding = $evenOdd ? ($winding ^ 1) : $winding + $dir;
                     if ($was === 0 && $winding !== 0) {
@@ -237,21 +238,29 @@ final class Canvas
 
             $row = &$this->rows[$py];
             $run = 0.0;
-            for ($i = 0; $i < $spanW; $i++) {
-                $run += $delta[$i];
-                $c = $cov[$i] + $run;
-                if ($c <= 0.002) {
+            $solidFrom = -1;
+            for ($i = 0; $i <= $spanW; $i++) {
+                $c = 0.0;
+                if ($i < $spanW) {
+                    $run += $delta[$i];
+                    $c = $cov[$i] + $run;
+                    if ($c >= 0.998 && $opaque) {
+                        if ($solidFrom < 0) {
+                            $solidFrom = $i;
+                        }
+
+                        continue;
+                    }
+                }
+                if ($solidFrom >= 0) {
+                    $len = $i - $solidFrom;
+                    $row = substr_replace($row, str_repeat($solid, $len), ($bx0 + $solidFrom) * 4, $len * 4);
+                    $solidFrom = -1;
+                }
+                if ($i === $spanW || $c <= 0.002) {
                     continue;
                 }
                 $o = ($bx0 + $i) * 4;
-                if ($c >= 0.998 && $opaque) {
-                    $row[$o] = $solid[0];
-                    $row[$o + 1] = $solid[1];
-                    $row[$o + 2] = $solid[2];
-                    $row[$o + 3] = $solid[3];
-
-                    continue;
-                }
                 $sa = ($c > 1.0 ? 1.0 : $c) * $ca;
                 $da = ord($row[$o + 3]) / 255;
                 $keepDst = $da * (1 - $sa);
@@ -285,10 +294,11 @@ final class Canvas
      */
     public function toPng(): string
     {
+        // A bitwise AND of two strings runs in C: keep only the alpha bytes and compare.
+        $mask = str_repeat("\0\0\0\xFF", $this->width);
         $opaque = true;
         foreach ($this->rows as $row) {
-            $alpha = (string) preg_replace('/.../s', '', $row);
-            if (strspn($alpha, "\xFF") !== strlen($alpha)) {
+            if (($row & $mask) !== $mask) {
                 $opaque = false;
                 break;
             }
@@ -328,7 +338,7 @@ final class Canvas
     private static function zlib(string $data): string
     {
         if (function_exists('gzcompress')) {
-            return (string) gzcompress($data, 9);
+            return (string) gzcompress($data, 6);
         }
         $out = "\x78\x01";
         $length = strlen($data);

@@ -14,7 +14,7 @@ final class WebpTest extends TestCase
 
     public function test_the_file_has_a_correct_riff_header(): void
     {
-        $webp = QrCode::webp(self::TEXT, [], 300);
+        $webp = (new QrCode(self::TEXT))->toWebp(300);
 
         $this->assertSame('RIFF', substr($webp, 0, 4));
         $this->assertSame(strlen($webp) - 8, unpack('V', substr($webp, 4, 4))[1] ?? null);

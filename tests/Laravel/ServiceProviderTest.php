@@ -6,7 +6,6 @@ namespace Wnikk\QrCodeCute\Tests\Laravel;
 
 use Illuminate\Foundation\Application;
 use Orchestra\Testbench\TestCase;
-use Wnikk\QrCodeCute\Generator;
 use Wnikk\QrCodeCute\Laravel\QrCodeServiceProvider;
 use Wnikk\QrCodeCute\QrCode;
 
@@ -23,20 +22,22 @@ final class ServiceProviderTest extends TestCase
         return [QrCodeServiceProvider::class];
     }
 
-    public function test_the_container_gives_one_shared_generator(): void
+    public function test_the_container_gives_one_shared_object(): void
     {
-        $generator = resolve(Generator::class);
+        $qr = resolve(QrCode::class);
 
-        $this->assertInstanceOf(Generator::class, $generator);
-        $this->assertSame($generator, resolve(Generator::class));
+        $this->assertInstanceOf(QrCode::class, $qr);
+        $this->assertSame($qr, resolve(QrCode::class));
+        $this->assertSame(QrCode::DEFAULTS, $qr->getOptions());
     }
 
-    public function test_the_shared_generator_does_not_change(): void
+    public function test_the_shared_object_does_not_change(): void
     {
-        $png = resolve(Generator::class)->shape('circle')->format('png')->size(64)->generate('https://example.com');
+        $png = resolve(QrCode::class)->shape('circle')->text('https://example.com')->toPng(64);
 
         $this->assertStringStartsWith("\x89PNG", $png);
-        $this->assertSame('square', resolve(Generator::class)->getOptions()['shape']);
-        $this->assertSame(QrCode::svg('https://example.com'), resolve(Generator::class)->generate('https://example.com'));
+        $this->assertSame('square', resolve(QrCode::class)->getOptions()['shape']);
+        $this->assertSame('', resolve(QrCode::class)->getText());
+        $this->assertSame(QrCode::svg('https://example.com'), resolve(QrCode::class)->text('https://example.com')->toSvg());
     }
 }

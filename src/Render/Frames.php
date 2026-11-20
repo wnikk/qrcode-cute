@@ -206,7 +206,6 @@ final class Frames
             ],
             'strokes' => [
                 [
-                    'el' => 'path',
                     'strokeWidth' => 9.16031,
                     'd' => 'M182.033 56.3398C194.374 34.966 225.224 34.9661 237.564 56.3398L380.043 303.119C392.383 324.493 376.958 351.211 352.277 351.211H67.3203C42.64 351.211 27.2148 324.493 39.5547 303.119L182.033 56.3398Z',
                 ],
@@ -322,7 +321,6 @@ final class Frames
             $el = new SvgNode('path');
             $el->setAttribute('d', $shape === 'hexagonal' ? self::HEX_BG_PATH : self::TRI_BG_PATH);
         }
-        $el->setAttribute('id', 'Background');
         $el->setAttribute('fill', $bg);
         $svg->appendChild($el);
     }

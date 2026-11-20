@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Example 5: content types with one Generator design, saved as WebP.
+ * Example 5: content types with one design, saved as WebP.
  *
  *     php docs/example5-content-types.php
  *
@@ -13,11 +13,10 @@ declare(strict_types=1);
 
 require __DIR__.'/scene.php';
 
-use Wnikk\QrCodeCute\Generator;
-use Wnikk\QrCodeCute\Payload;
+use Wnikk\QrCodeCute\QrCode;
 
-// One design for all codes. Each setter gives a new generator.
-$generator = (new Generator)
+// One design for all codes. Each setter and each content method gives a new object.
+$design = (new QrCode)
     ->shape('hexagon')
     ->frame('thin')
     ->pattern('rounded')
@@ -25,8 +24,8 @@ $generator = (new Generator)
     ->frameColor('#0ea5e9');
 
 saveScene('example5-content-types.webp', [
-    $generator->make(Payload::wifi('Office', 'secret')),
-    $generator->make(Payload::vcard(firstName: 'Ivan', lastName: 'Petrov', phone: '+15551234567', email: 'ivan@example.com')),
-    $generator->make(Payload::geo(55.751244, 37.618423, 'Red Square')),
-    $generator->make(Payload::bitcoin('bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq', '0.0012', 'Shop')),
+    $design->wifi('Office', 'secret'),
+    $design->vcard(firstName: 'Ivan', lastName: 'Petrov', phone: '+15551234567', email: 'ivan@example.com'),
+    $design->geo(55.751244, 37.618423, 'Red Square'),
+    $design->bitcoin('bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq', '0.0012', 'Shop'),
 ], '#bae6fd');

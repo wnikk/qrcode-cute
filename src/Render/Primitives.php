@@ -32,17 +32,6 @@ final class Primitives
     ];
 
     /**
-     * Create an element.
-     *
-     * @param  string  $name
-     * @return SvgNode
-     */
-    public static function el(string $name): SvgNode
-    {
-        return new SvgNode($name);
-    }
-
-    /**
      * Gives true in the 8x8 area around each of the three finder patterns.
      *
      * @param  int  $row
@@ -50,7 +39,7 @@ final class Primitives
      * @param  int  $n
      * @return bool
      */
-    public static function isFinderZone(int $row, int $col, int $n): bool
+    private static function isFinderZone(int $row, int $col, int $n): bool
     {
         return ($row < 8 && $col < 8)
             || ($row < 8 && $col >= $n - 8)
@@ -58,70 +47,36 @@ final class Primitives
     }
 
     /**
-     * Gives a copy of the matrix without the finder areas.
+     * Make a root <svg> element with a view box.
      *
-     * @param  bool[][]  $matrix
-     * @return bool[][]
-     */
-    public static function maskFinders(array $matrix): array
-    {
-        $n = count($matrix);
-        foreach ($matrix as $r => $row) {
-            foreach ($row as $c => $v) {
-                if ($v && self::isFinderZone($r, $c, $n)) {
-                    $matrix[$r][$c] = false;
-                }
-            }
-        }
-
-        return $matrix;
-    }
-
-    /**
-     * Gives a root <svg> element with an optional rounded background.
-     *
-     * @param  float  $size
-     * @param  string  $bg
-     * @param  float  $bgRx
+     * @param  float  $width
+     * @param  float  $height
      * @return SvgNode
      */
-    public static function makeSvg(float $size, string $bg, float $bgRx): SvgNode
+    public static function svg(float $width, float $height): SvgNode
     {
-        $svg = self::el('svg');
-        $svg->setAttribute('id', 'qr-code');
-        $svg->setAttribute('viewBox', '0 0 '.Num::fmt($size).' '.Num::fmt($size));
-        $svg->setAttribute('shape-rendering', 'crispEdges');
-        if ($bg !== '' && $bg !== 'transparent') {
-            $rect = self::el('rect');
-            $rect->setAttribute('width', $size);
-            $rect->setAttribute('height', $size);
-            if ($bgRx) {
-                $rect->setAttribute('rx', $bgRx);
-                $rect->setAttribute('ry', $bgRx);
-            }
-            $rect->setAttribute('id', 'Background');
-            $rect->setAttribute('fill', $bg);
-            $svg->appendChild($rect);
-        }
+        $svg = new SvgNode('svg');
+        $svg->setAttribute('viewBox', '0 0 '.Num::fmt($width).' '.Num::fmt($height));
+        $svg->setAttribute('shape-rendering', 'geometricPrecision');
 
         return $svg;
     }
 
     /**
-     * Gives the module radius for the cell at (row, col).
+     * Get the radius of a decorative cell. The radius changes a little from cell to cell.
      *
      * @param  Context  $ctx
-     * @param  float  $row
-     * @param  float  $col
+     * @param  int  $gi
+     * @param  int  $gj
      * @return float
      */
-    public static function dotRadius(Context $ctx, float $row, float $col): float
+    public static function fillRadius(Context $ctx, int $gi, int $gj): float
     {
         if ($ctx->pattern === 'star') {
-            return $ctx->rand($row, $col) < 0.5 ? 4.0 : 2.8;
+            return $ctx->rand($gi, $gj) < 0.5 ? 4.0 : 2.8;
         }
 
-        return 4.0;
+        return max(4.0 + ($ctx->rand($gj * 7, $gi * 11) - 0.5) * 0.5, 3.2);
     }
 
     /* ── Module shapes ─────────────────────────────────────────── */
@@ -129,7 +84,6 @@ final class Primitives
     /**
      * Draw one module in the shape of a pattern.
      *
-     * @param  Context  $ctx
      * @param  SvgNode  $parent
      * @param  float  $cx
      * @param  float  $cy
@@ -137,7 +91,7 @@ final class Primitives
      * @param  string  $shape
      * @return void
      */
-    public static function drawModule(Context $ctx, SvgNode $parent, float $cx, float $cy, float $r, string $shape): void
+    private static function drawModule(SvgNode $parent, float $cx, float $cy, float $r, string $shape): void
     {
         $f1 = static fn (float $v): string => Num::fixed($v, 1);
         $f2 = static fn (float $v): string => Num::fixed($v, 2);
@@ -146,22 +100,20 @@ final class Primitives
             case 'small':
                 // Small squares with gaps between the cells.
                 $side = $r * 1.85;
-                $el = self::el('rect');
+                $el = new SvgNode('rect');
                 $el->setAttribute('x', $f2($cx - $side / 2));
                 $el->setAttribute('y', $f2($cy - $side / 2));
                 $el->setAttribute('width', $f2($side));
                 $el->setAttribute('height', $f2($side));
-                $el->setAttribute('rx', '0');
                 break;
 
             case 'square':
-                $half = $ctx->moduleSize / 2;
-                $el = self::el('rect');
+                $half = Context::MODULE / 2;
+                $el = new SvgNode('rect');
                 $el->setAttribute('x', $f2($cx - $half));
                 $el->setAttribute('y', $f2($cy - $half));
-                $el->setAttribute('width', $ctx->moduleSize);
-                $el->setAttribute('height', $ctx->moduleSize);
-                $el->setAttribute('rx', '0');
+                $el->setAttribute('width', Context::MODULE);
+                $el->setAttribute('height', Context::MODULE);
                 break;
 
             case 'stars':
@@ -174,7 +126,7 @@ final class Primitives
                     $ang = -M_PI / 2 + $i * M_PI / 5;
                     $pts[] = $f2($cx + cos($ang) * $rad).','.$f2($cy + sin($ang) * $rad);
                 }
-                $el = self::el('polygon');
+                $el = new SvgNode('polygon');
                 $el->setAttribute('points', implode(' ', $pts));
                 break;
 
@@ -187,7 +139,7 @@ final class Primitives
                     .' C '.$f2($cx + $hr * 0.45).','.$f2($cy - $hr * 1.05)
                     .' '.$f2($cx + $hr * 1.4).','.$f2($cy - $hr * 0.25)
                     .' '.$f2($cx).','.$f2($cy + $hr * 0.55).' Z';
-                $el = self::el('path');
+                $el = new SvgNode('path');
                 $el->setAttribute('d', $d);
                 break;
 
@@ -195,7 +147,7 @@ final class Primitives
                 // An equilateral triangle that points up.
                 $tx = $r * 1.25;
                 $ty = $r * 0.72;
-                $el = self::el('polygon');
+                $el = new SvgNode('polygon');
                 $el->setAttribute('points',
                     $f2($cx).','.$f2($cy - $r * 1.44).' '
                     .$f2($cx + $tx).','.$f2($cy + $ty).' '
@@ -204,7 +156,7 @@ final class Primitives
 
             case 'diamonds':
                 $dr = $r * 1.35;
-                $el = self::el('polygon');
+                $el = new SvgNode('polygon');
                 $el->setAttribute('points',
                     $f2($cx).','.$f2($cy - $dr).' '
                     .$f2($cx + $dr).','.$f2($cy).' '
@@ -214,7 +166,7 @@ final class Primitives
 
             default:
                 // 'dots', 'star' and all other round shapes.
-                $el = self::el('circle');
+                $el = new SvgNode('circle');
                 $el->setAttribute('cx', $f1($cx));
                 $el->setAttribute('cy', $f1($cy));
                 $el->setAttribute('r', $f2($r));
@@ -223,7 +175,7 @@ final class Primitives
     }
 
     /**
-     * Draws the data modules of the matrix with the current pattern.
+     * Draw the data modules of the matrix with the current pattern.
      * Does not draw the finder areas. The matrix origin is at (x0, y0).
      *
      * @param  Context  $ctx
@@ -236,56 +188,65 @@ final class Primitives
     public static function drawData(Context $ctx, SvgNode $parent, array $matrix, float $x0, float $y0): void
     {
         $n = count($matrix);
-        $m = $ctx->moduleSize;
-
-        if ($ctx->isPillLike()) {
-            $parent->appendChild(self::renderPills(
-                $ctx, self::maskFinders($matrix), $ctx->color, $x0, $y0, $ctx->pillMode(), $ctx->pillSharp()
-            ));
-
-            return;
-        }
-        if ($ctx->pattern === 'rounded') {
-            $parent->appendChild(self::renderGroupedQr($matrix, $n, $ctx->color, $x0, $y0, $m));
-
-            return;
-        }
-
-        $g = self::el('g');
-        $g->setAttribute('fill', $ctx->color);
-        for ($r = 0; $r < $n; $r++) {
-            for ($c = 0; $c < $n; $c++) {
-                if (! $matrix[$r][$c] || self::isFinderZone($r, $c, $n)) {
+        $m = Context::MODULE;
+        $cells = [];
+        foreach ($matrix as $r => $row) {
+            foreach ($row as $c => $dark) {
+                if (! $dark || self::isFinderZone($r, $c, $n)) {
                     continue;
                 }
-                $mcx = $x0 + $c * $m + $m / 2;
-                $mcy = $y0 + $r * $m + $m / 2;
-                self::drawModule($ctx, $g, $mcx, $mcy, self::dotRadius($ctx, $r, $c), $ctx->pattern);
+                $cells[] = [
+                    'gi' => $r,
+                    'gj' => $c,
+                    'pcx' => $x0 + $c * $m + $m / 2,
+                    'pcy' => $y0 + $r * $m + $m / 2,
+                    'dotR' => ($ctx->pattern === 'star' && $ctx->rand($r, $c) >= 0.5) ? 2.8 : 4.0,
+                ];
             }
         }
+
+        $g = new SvgNode('g');
+        $g->setAttribute('fill', $ctx->color);
+        self::drawCells($ctx, $g, $cells);
         $parent->appendChild($g);
     }
 
     /**
-     * Draws the decorative cells around a shaped code.
+     * Draw a list of cells with the current pattern. The parent sets the fill colour.
+     *
+     * The 'rounded', pill and bar patterns merge adjacent cells into one shape.
      *
      * @param  Context  $ctx
      * @param  SvgNode  $parent
-     * @param  array  $cells
      * @param  array<int, array{gi: int, gj: int, pcx: float, pcy: float, dotR: float}>  $cells
      * @return void
      */
-    public static function drawContinuation(Context $ctx, SvgNode $parent, array $cells): void
+    public static function drawCells(Context $ctx, SvgNode $parent, array $cells): void
     {
-        $m = $ctx->moduleSize;
         if ($ctx->isPillLike()) {
-            self::appendPillContinuation($parent, $cells, $ctx->pillMode(), $m, $ctx->pillSharp());
-        } elseif ($ctx->pattern === 'rounded') {
-            self::appendGroupedContinuation($parent, $cells, $m);
-        } else {
+            self::drawPills($parent, $cells, $ctx->pillMode(), $ctx->pillSharp());
+
+            return;
+        }
+
+        if ($ctx->pattern === 'rounded') {
+            $dark = [];
             foreach ($cells as $c) {
-                self::drawModule($ctx, $parent, $c['pcx'], $c['pcy'], $c['dotR'], $ctx->pattern);
+                $dark[$c['gi']][$c['gj']] = true;
             }
+            $isDark = static fn (int $i, int $j): bool => isset($dark[$i][$j]);
+            $half = Context::MODULE / 2;
+            foreach ($cells as $c) {
+                $path = new SvgNode('path');
+                $path->setAttribute('d', self::groupedCellPath($isDark, $c['gi'], $c['gj'], $c['pcx'] - $half, $c['pcy'] - $half));
+                $parent->appendChild($path);
+            }
+
+            return;
+        }
+
+        foreach ($cells as $c) {
+            self::drawModule($parent, $c['pcx'], $c['pcy'], $c['dotR'], $ctx->pattern);
         }
     }
 
@@ -301,7 +262,7 @@ final class Primitives
      * @param  float  $ty
      * @return string
      */
-    public static function transformPathData(string $d, float $s, float $tx, float $ty): string
+    private static function transformPathData(string $d, float $s, float $tx, float $ty): string
     {
         return (string) preg_replace_callback(
             '/([MLCHVZ])([^MLCHVZ]*)/i',
@@ -341,11 +302,11 @@ final class Primitives
      * @param  string  $color
      * @return SvgNode
      */
-    public static function finderEye(Context $ctx, float $ecx, float $ecy, float $eR, string $color): SvgNode
+    private static function finderEye(Context $ctx, float $ecx, float $ecy, float $eR, string $color): SvgNode
     {
         $shape = isset(self::EYE_PATH_D[$ctx->eyeShape]) ? $ctx->eyeShape : 'circle';
         $s = ($eR * 2) / 52;
-        $p = self::el('path');
+        $p = new SvgNode('path');
         $p->setAttribute('d', self::transformPathData(self::EYE_PATH_D[$shape], $s, $ecx - $eR, $ecy - $eR));
         $p->setAttribute('fill-rule', 'evenodd');
         $p->setAttribute('fill', $color);
@@ -365,15 +326,14 @@ final class Primitives
      */
     public static function drawFinderEyes(Context $ctx, SvgNode $parent, int $n, float $x0, float $y0): void
     {
-        $m = $ctx->moduleSize;
+        $m = Context::MODULE;
         $eR = 3.5 * $m;
         $eyes = [
             [$x0 + 3.5 * $m, $y0 + 3.5 * $m],
             [$x0 + ($n - 3.5) * $m, $y0 + 3.5 * $m],
             [$x0 + 3.5 * $m, $y0 + ($n - 3.5) * $m],
         ];
-        $g = self::el('g');
-        $g->setAttribute('class', 'qr-eyes');
+        $g = new SvgNode('g');
         foreach ($eyes as [$ecx, $ecy]) {
             $g->appendChild(self::finderEye($ctx, $ecx, $ecy, $eR, $ctx->eyeFill()));
         }
@@ -395,7 +355,7 @@ final class Primitives
      * @param  float  $rBL
      * @return string
      */
-    public static function roundedRectPath(float $x, float $y, float $w, float $h, float $rTL, float $rTR, float $rBR, float $rBL): string
+    private static function roundedRectPath(float $x, float $y, float $w, float $h, float $rTL, float $rTR, float $rBR, float $rBL): string
     {
         $f = static fn (float $v): string => Num::fixed($v, 1);
         $p = 'M'.$f($x + $rTL).','.$f($y);
@@ -430,7 +390,7 @@ final class Primitives
      * @param  string  $quadrant
      * @return string
      */
-    public static function concaveFillet(float $cx, float $cy, float $r, string $quadrant): string
+    private static function concaveFillet(float $cx, float $cy, float $r, string $quadrant): string
     {
         switch ($quadrant) {
             case 'BR':
@@ -454,20 +414,19 @@ final class Primitives
     }
 
     /**
-     * Gives the path for one cell of a grouped shape. A corner without a dark
+     * Get the path for one cell of a grouped shape. A corner without a dark
      * neighbour is rounded. A concave corner gets a fillet.
      *
-     * @param  callable  $isDark
-     * @param  int|float  $i
-     * @param  int|float  $j
+     * @param  callable(int, int): bool  $isDark
+     * @param  int  $i
+     * @param  int  $j
      * @param  float  $x
      * @param  float  $y
-     * @param  float  $m
-     * @param  callable(int|float, int|float): bool  $isDark
      * @return string
      */
-    private static function groupedCellPath(callable $isDark, int|float $i, int|float $j, float $x, float $y, float $m): string
+    private static function groupedCellPath(callable $isDark, int $i, int $j, float $x, float $y): string
     {
+        $m = Context::MODULE;
         $r = $m * 0.4;
         $top = $isDark($i - 1, $j);
         $bottom = $isDark($i + 1, $j);
@@ -499,92 +458,21 @@ final class Primitives
         return $d;
     }
 
-    /**
-     * Gives the matrix as merged rounded shapes, with one path for each cell.
-     * Does not draw the finder areas. Another function draws the eyes.
-     *
-     * @param  bool[][]  $matrix
-     * @param  int  $n
-     * @param  string  $fg
-     * @param  float  $offsetX
-     * @param  float  $offsetY
-     * @param  float  $m
-     * @return SvgNode
-     */
-    public static function renderGroupedQr(array $matrix, int $n, string $fg, float $offsetX, float $offsetY, float $m): SvgNode
-    {
-        $isDark = static function ($r, $c) use ($matrix, $n): bool {
-            if ($r < 0 || $r >= $n || $c < 0 || $c >= $n) {
-                return false;
-            }
-
-            return $matrix[$r][$c] && ! self::isFinderZone($r, $c, $n);
-        };
-
-        $group = self::el('g');
-        $group->setAttribute('fill', $fg);
-        for ($r = 0; $r < $n; $r++) {
-            for ($c = 0; $c < $n; $c++) {
-                if (! $isDark($r, $c)) {
-                    continue;
-                }
-                $path = self::el('path');
-                $path->setAttribute('d', self::groupedCellPath($isDark, $r, $c, $offsetX + $c * $m, $offsetY + $r * $m, $m));
-                $group->appendChild($path);
-            }
-        }
-
-        return $group;
-    }
-
-    /**
-     * Draws grouped 'rounded' shapes for a list of decorative cells.
-     *
-     * @param  SvgNode  $parent
-     * @param  array  $cells
-     * @param  float  $m
-     * @param  array<int, array{gi: int, gj: int, pcx: float, pcy: float}>  $cells
-     * @return void
-     */
-    public static function appendGroupedContinuation(SvgNode $parent, array $cells, float $m): void
-    {
-        if (! $cells) {
-            return;
-        }
-        $map = [];
-        foreach ($cells as $c) {
-            $map[$c['gi'].','.$c['gj']] = true;
-        }
-        $isDark = static fn ($gi, $gj): bool => isset($map[$gi.','.$gj]);
-
-        $fill = $parent->getAttribute('fill') ?? '#000';
-        foreach ($cells as $c) {
-            $path = self::el('path');
-            $path->setAttribute('d', self::groupedCellPath($isDark, $c['gi'], $c['gj'], $c['pcx'] - $m / 2, $c['pcy'] - $m / 2, $m));
-            $path->setAttribute('fill', $fill);
-            $parent->appendChild($path);
-        }
-    }
-
     /* ── Pill and bar patterns ─────────────────────────────────── */
 
     /**
-     * Draws pill or bar shapes for a list of decorative cells. Adjacent cells
-     * in the merge direction become one capsule. A single cell becomes a dot.
+     * Draw pill or bar shapes for a list of cells. Adjacent cells in the merge
+     * direction become one capsule. A single cell becomes a dot or a small square.
      *
      * @param  SvgNode  $parent
-     * @param  array  $cells
-     * @param  string  $mode
-     * @param  float  $m
-     * @param  bool  $sharp
-     * @param  array<int, array{gi: int, gj: int, pcx: float, pcy: float}>  $cells
+     * @param  array<int, array{gi: int, gj: int, pcx: float, pcy: float, dotR: float}>  $cells
+     * @param  string  $mode  'h' or 'v'.
+     * @param  bool  $sharp  Set to true for square corners.
      * @return void
      */
-    public static function appendPillContinuation(SvgNode $parent, array $cells, string $mode, float $m, bool $sharp): void
+    private static function drawPills(SvgNode $parent, array $cells, string $mode, bool $sharp): void
     {
-        if (! $cells) {
-            return;
-        }
+        $m = Context::MODULE;
         $r = $m * 0.4;
         $corner = $sharp ? 0 : $r;
         $along = $mode === 'h' ? 'gj' : 'gi';
@@ -609,19 +497,19 @@ final class Primitives
 
                 if ($i === $start) {
                     if ($sharp) {
-                        $el = self::el('rect');
+                        $el = new SvgNode('rect');
                         $el->setAttribute('x', $first['pcx'] - $r);
                         $el->setAttribute('y', $first['pcy'] - $r);
                         $el->setAttribute('width', $r * 2);
                         $el->setAttribute('height', $r * 2);
                     } else {
-                        $el = self::el('circle');
+                        $el = new SvgNode('circle');
                         $el->setAttribute('cx', $first['pcx']);
                         $el->setAttribute('cy', $first['pcy']);
                         $el->setAttribute('r', $r);
                     }
                 } else {
-                    $el = self::el('rect');
+                    $el = new SvgNode('rect');
                     if ($mode === 'h') {
                         $x0 = $first['pcx'] - $m / 2;
                         $x1 = $last['pcx'] + $m / 2;
@@ -644,112 +532,5 @@ final class Primitives
                 $i++;
             }
         }
-    }
-
-    /**
-     * Gives the matrix as horizontal ('h') or vertical ('v') runs. Each run
-     * becomes a capsule or a bar. A single module becomes a dot or a small square.
-     *
-     * @param  Context  $ctx
-     * @param  bool[][]  $matrix
-     * @param  string  $fg
-     * @param  float  $offsetX
-     * @param  float  $offsetY
-     * @param  string  $mode
-     * @param  bool  $sharp
-     * @return SvgNode
-     */
-    public static function renderPills(Context $ctx, array $matrix, string $fg, float $offsetX, float $offsetY, string $mode, bool $sharp): SvgNode
-    {
-        $n = count($matrix);
-        $m = $ctx->moduleSize;
-        $r = $m * 0.4;
-        $inset = ($m - $r * 2) / 2;
-        $corner = $sharp ? 0 : $r;
-        $f = [Num::class, 'fmt'];
-
-        $rectPath = static function (float $x0, float $y0, float $x1, float $y1) use ($corner, $f): string {
-            if ($corner == 0) {
-                return 'M'.$f($x0).','.$f($y0).' L'.$f($x1).','.$f($y0)
-                    .' L'.$f($x1).','.$f($y1).' L'.$f($x0).','.$f($y1).' Z';
-            }
-            $k = $corner;
-
-            return 'M'.$f($x0 + $k).','.$f($y0)
-                .' L'.$f($x1 - $k).','.$f($y0)
-                .' Q'.$f($x1).','.$f($y0).' '.$f($x1).','.$f($y0 + $k)
-                .' L'.$f($x1).','.$f($y1 - $k)
-                .' Q'.$f($x1).','.$f($y1).' '.$f($x1 - $k).','.$f($y1)
-                .' L'.$f($x0 + $k).','.$f($y1)
-                .' Q'.$f($x0).','.$f($y1).' '.$f($x0).','.$f($y1 - $k)
-                .' L'.$f($x0).','.$f($y0 + $k)
-                .' Q'.$f($x0).','.$f($y0).' '.$f($x0 + $k).','.$f($y0).' Z';
-        };
-
-        $dotPath = static function (int $row, int $col) use ($offsetX, $offsetY, $m, $r, $sharp, $rectPath, $f): string {
-            $cx = $offsetX + $col * $m + $m / 2;
-            $cy = $offsetY + $row * $m + $m / 2;
-            if ($sharp) {
-                return $rectPath($cx - $r, $cy - $r, $cx + $r, $cy + $r);
-            }
-
-            return 'M'.$f($cx - $r).','.$f($cy)
-                .' a'.$f($r).','.$f($r).' 0 1,0 '.$f($r * 2).',0'
-                .' a'.$f($r).','.$f($r).' 0 1,0 '.$f(-$r * 2).',0 Z';
-        };
-
-        $group = self::el('g');
-        $group->setAttribute('fill', $fg);
-        $add = static function (string $d) use ($group): void {
-            $p = new SvgNode('path');
-            $p->setAttribute('d', $d);
-            $group->appendChild($p);
-        };
-
-        if ($mode === 'h') {
-            for ($row = 0; $row < $n; $row++) {
-                $c = 0;
-                while ($c < $n) {
-                    if (! $matrix[$row][$c]) {
-                        $c++;
-
-                        continue;
-                    }
-                    $c0 = $c;
-                    while ($c < $n && $matrix[$row][$c]) {
-                        $c++;
-                    }
-                    if ($c - $c0 === 1) {
-                        $add($dotPath($row, $c0));
-                    } else {
-                        $y0 = $offsetY + $row * $m + $inset;
-                        $add($rectPath($offsetX + $c0 * $m, $y0, $offsetX + $c * $m, $y0 + $r * 2));
-                    }
-                }
-            }
-        } else {
-            for ($col = 0; $col < $n; $col++) {
-                $row = 0;
-                while ($row < $n) {
-                    if (! $matrix[$row][$col]) {
-                        $row++;
-
-                        continue;
-                    }
-                    $r0 = $row;
-                    while ($row < $n && $matrix[$row][$col]) {
-                        $row++;
-                    }
-                    if ($row - $r0 === 1) {
-                        $add($dotPath($r0, $col));
-                    } else {
-                        $x0 = $offsetX + $col * $m + $inset;
-                        $add($rectPath($x0, $offsetY + $r0 * $m, $x0 + $r * 2, $offsetY + $row * $m));
-                    }
-                }
-            }
-        }
-
-        return $group;
     }
 }

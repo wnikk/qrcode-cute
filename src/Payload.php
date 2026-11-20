@@ -13,13 +13,16 @@ use Wnikk\QrCodeCute\Exception\InvalidOptionException;
 /**
  * Make payload strings for the usual QR content types.
  *
- * Each method gives a string. Give the string to QrCode or to Generator:
+ * QrCode uses this class for its content methods, for example QrCode::wifi().
+ * Use those methods. Each method here gives the payload string only:
  *
  *     $text = Payload::wifi('Office', 'secret');
- *     $svg = QrCode::svg($text);
+ *     $same = (new QrCode)->wifi('Office', 'secret')->getText();
  *
  * The formats follow the formats that phone cameras and the ZXing library
  * read. Use named arguments for the optional parameters.
+ *
+ * @internal
  */
 final class Payload
 {
@@ -378,7 +381,6 @@ final class Payload
     /**
      * Join query parameters. The values must be encoded already.
      *
-     * @param  array  $query
      * @param  array<string, string>  $query
      * @return string
      */

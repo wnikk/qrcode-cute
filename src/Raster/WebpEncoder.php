@@ -466,9 +466,8 @@ final class WebpEncoder
     /**
      * Write the code of one symbol.
      *
-     * @param  array  $codes
-     * @param  int  $symbol
      * @param  array<int, array{0: int, 1: int}>  $codes
+     * @param  int  $symbol
      * @return void
      */
     private function writeSymbol(array $codes, int $symbol): void

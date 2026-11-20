@@ -12,6 +12,13 @@ namespace Wnikk\QrCodeCute\Render;
 final class Context
 {
     /**
+     * The canvas units for one module.
+     *
+     * @var int
+     */
+    public const MODULE = 10;
+
+    /**
      * The module shape. One of QrCode::PATTERNS.
      *
      * @var string
@@ -52,13 +59,6 @@ final class Context
      * @var string|null
      */
     public ?string $frameColor = null;
-
-    /**
-     * The canvas units for one module. All renderers set this value to 10.
-     *
-     * @var int
-     */
-    public int $moduleSize = 10;
 
     /**
      * The seed for the 'star' pattern and for the decorative fill.

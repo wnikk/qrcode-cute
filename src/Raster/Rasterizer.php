@@ -116,7 +116,6 @@ final class Rasterizer
      * @param  Canvas  $canvas
      * @param  SvgNode  $node
      * @param  float[]  $matrix  affine transform a, b, c, d, e, f
-     * @param  array  $style
      * @param  array<string, mixed>  $style  inherited presentation attributes
      * @return void
      */
@@ -161,7 +160,6 @@ final class Rasterizer
      * @param  Canvas  $canvas
      * @param  SvgNode  $node
      * @param  float[]  $matrix
-     * @param  array  $style
      * @param  array<string, mixed>  $style
      * @return void
      */
@@ -248,7 +246,6 @@ final class Rasterizer
      *
      * @param  SvgNode  $node
      * @param  float[]  $matrix
-     * @param  array  $style
      * @param  array<string, mixed>  $style
      * @return array{0: float[], 1: array<string, mixed>}
      */
@@ -344,9 +341,8 @@ final class Rasterizer
      * Gives a stroke as a union of segment quads and round joins. All have the
      * same winding, so the nonzero rule fills their union.
      *
-     * @param  array  $subpaths
-     * @param  float  $half
      * @param  array<int, array{points: float[], closed: bool}>  $subpaths  device-space polylines
+     * @param  float  $half
      * @return array<int, float[]>
      */
     private static function strokePolygons(array $subpaths, float $half): array

@@ -5,24 +5,24 @@ declare(strict_types=1);
 namespace Wnikk\QrCodeCute\Laravel;
 
 use Illuminate\Support\ServiceProvider;
-use Wnikk\QrCodeCute\Generator;
+use Wnikk\QrCodeCute\QrCode;
 
 /**
- * Register the generator in a Laravel application.
+ * Register QrCode in a Laravel application.
  *
- * Laravel finds this provider automatically. The generator is immutable,
+ * Laravel finds this provider automatically. A QrCode object is immutable,
  * thus one shared instance is safe. Inject it into a class, or get it with
- * app(Generator::class). The library itself does not need Laravel.
+ * app(QrCode::class). The library itself does not need Laravel.
  */
 class QrCodeServiceProvider extends ServiceProvider
 {
     /**
-     * Register the generator as a shared instance.
+     * Register QrCode as a shared instance with the default design.
      *
      * @return void
      */
     public function register(): void
     {
-        $this->app->singleton(Generator::class);
+        $this->app->singleton(QrCode::class);
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Wnikk\QrCodeCute;
 
+use DateTimeInterface;
 use Wnikk\QrCodeCute\Encoder\Encoder;
 use Wnikk\QrCodeCute\Exception\DataTooLongException;
 use Wnikk\QrCodeCute\Exception\InvalidOptionException;
@@ -20,12 +21,16 @@ use Wnikk\QrCodeCute\Svg\SvgNode;
 /**
  * A QR code in the shape of a square, a circle, a triangle or a hexagon.
  *
- *     $qr = new QrCode('https://example.com', ['shape' => 'circle']);
- *     $qr->save('qr.svg');
- *     $qr->save('qr.png', 1024);
+ *     echo QrCode::svg('https://example.com', ['shape' => 'circle']);
  *
- * The constructor validates the options. An unknown option or value causes
- * an exception. The library does not replace a bad value with a default.
+ *     $png = (new QrCode)->shape('hexagon')->frame('thin')->wifi('Office', 'secret')->toPng(512);
+ *
+ * This class is the public interface of the library. The object is immutable:
+ * each setter and each content method gives a new object. Thus one object can
+ * be a shared design, for example in the Laravel container.
+ *
+ * Each setter validates its value. An unknown option or value causes an
+ * exception. The library does not replace a bad value with a default.
  */
 final class QrCode
 {
@@ -122,18 +127,17 @@ final class QrCode
     /**
      * Create a QR code.
      *
-     * @param  string  $text  The payload, as UTF-8. Payload makes payloads for the usual content types.
-     * @param  array  $options
+     * The text can be empty here. Set it later with text() or with a content
+     * method, for example wifi(). An output method needs a text.
+     *
+     * @param  string  $text  The payload, as UTF-8.
      * @param  array<string, mixed>  $options  Refer to DEFAULTS and to the README.
      * @return void
      *
      * @throws InvalidOptionException
      */
-    public function __construct(string $text, array $options = [])
+    public function __construct(string $text = '', array $options = [])
     {
-        if ($text === '') {
-            throw new InvalidOptionException('text: expected a non-empty string');
-        }
         $this->text = $text;
         $this->options = self::resolveOptions($options);
     }
@@ -142,7 +146,6 @@ final class QrCode
      * Make the SVG markup in one call.
      *
      * @param  string  $text
-     * @param  array  $options
      * @param  array<string, mixed>  $options
      * @return string
      *
@@ -157,9 +160,8 @@ final class QrCode
      * Make the PNG bytes in one call.
      *
      * @param  string  $text
-     * @param  array  $options
-     * @param  int  $size  The width and the height in pixels.
      * @param  array<string, mixed>  $options
+     * @param  int  $size  The width and the height in pixels.
      * @return string
      *
      * @throws QrCodeException
@@ -170,12 +172,11 @@ final class QrCode
     }
 
     /**
-     * Make the WebP bytes in one call.
+     * Make the lossless WebP bytes in one call.
      *
      * @param  string  $text
-     * @param  array  $options
-     * @param  int  $size  The width and the height in pixels.
      * @param  array<string, mixed>  $options
+     * @param  int  $size  The width and the height in pixels.
      * @return string
      *
      * @throws QrCodeException
@@ -188,7 +189,6 @@ final class QrCode
     /**
      * Validate options and fill in the defaults.
      *
-     * @param  array  $options
      * @param  array<string, mixed>  $options
      * @return array<string, mixed>
      *
@@ -254,10 +254,13 @@ final class QrCode
         return self::FORMATS[$format];
     }
 
+    /* ── Design setters ────────────────────────────────────────── */
+
     /**
      * Get a copy of this code with some options changed. This object does not change.
      *
-     * @param  array  $options
+     * The value null sets the default of an option.
+     *
      * @param  array<string, mixed>  $options
      * @return self
      *
@@ -267,6 +270,346 @@ final class QrCode
     {
         return new self($this->text, array_merge($this->options, $options));
     }
+
+    /**
+     * Set the outline. One of SHAPES.
+     *
+     * @param  string  $shape
+     * @return self
+     *
+     * @throws InvalidOptionException
+     */
+    public function shape(string $shape): self
+    {
+        return $this->with(['shape' => $shape]);
+    }
+
+    /**
+     * Set the frame. One of FRAMES.
+     *
+     * @param  string  $frame
+     * @return self
+     *
+     * @throws InvalidOptionException
+     */
+    public function frame(string $frame): self
+    {
+        return $this->with(['frame' => $frame]);
+    }
+
+    /**
+     * Set the module shape. One of PATTERNS.
+     *
+     * @param  string  $pattern
+     * @return self
+     *
+     * @throws InvalidOptionException
+     */
+    public function pattern(string $pattern): self
+    {
+        return $this->with(['pattern' => $pattern]);
+    }
+
+    /**
+     * Set the shape of the finder eyes. One of EYE_SHAPES.
+     *
+     * @param  string  $eyeShape
+     * @return self
+     *
+     * @throws InvalidOptionException
+     */
+    public function eyeShape(string $eyeShape): self
+    {
+        return $this->with(['eyeShape' => $eyeShape]);
+    }
+
+    /**
+     * Set the module colour.
+     *
+     * @param  string  $color
+     * @return self
+     *
+     * @throws InvalidOptionException
+     */
+    public function color(string $color): self
+    {
+        return $this->with(['color' => $color]);
+    }
+
+    /**
+     * Set the background colour, or 'transparent'.
+     *
+     * @param  string  $background
+     * @return self
+     *
+     * @throws InvalidOptionException
+     */
+    public function background(string $background): self
+    {
+        return $this->with(['background' => $background]);
+    }
+
+    /**
+     * Set the colour of the finder eyes. The value null gives the module colour.
+     *
+     * @param  string|null  $eyeColor
+     * @return self
+     *
+     * @throws InvalidOptionException
+     */
+    public function eyeColor(?string $eyeColor): self
+    {
+        return $this->with(['eyeColor' => $eyeColor]);
+    }
+
+    /**
+     * Set the colour of the frame. The value null gives the module colour.
+     *
+     * @param  string|null  $frameColor
+     * @return self
+     *
+     * @throws InvalidOptionException
+     */
+    public function frameColor(?string $frameColor): self
+    {
+        return $this->with(['frameColor' => $frameColor]);
+    }
+
+    /**
+     * Set the error correction level. One of ERROR_CORRECTION_LEVELS.
+     *
+     * @param  string  $errorCorrection
+     * @return self
+     *
+     * @throws InvalidOptionException
+     */
+    public function errorCorrection(string $errorCorrection): self
+    {
+        return $this->with(['errorCorrection' => $errorCorrection]);
+    }
+
+    /**
+     * Set the seed for the 'star' pattern and for the decorative fill.
+     *
+     * @param  int|float  $seed
+     * @return self
+     *
+     * @throws InvalidOptionException
+     */
+    public function seed(int|float $seed): self
+    {
+        return $this->with(['seed' => $seed]);
+    }
+
+    /**
+     * Set the mask, 0-7. The value null selects the best mask.
+     *
+     * @param  int|null  $mask
+     * @return self
+     *
+     * @throws InvalidOptionException
+     */
+    public function mask(?int $mask): self
+    {
+        return $this->with(['mask' => $mask]);
+    }
+
+    /* ── Content ───────────────────────────────────────────────── */
+
+    /**
+     * Set the payload text.
+     *
+     * @param  string  $text  The payload, as UTF-8.
+     * @return self
+     */
+    public function text(string $text): self
+    {
+        $copy = clone $this;
+        $copy->text = $text;
+        $copy->matrix = null;
+
+        return $copy;
+    }
+
+    /**
+     * Set a Wi-Fi network as the payload.
+     *
+     * @param  string  $ssid  The network name.
+     * @param  string|null  $password
+     * @param  string  $encryption  'WPA', 'WEP' or 'nopass'.
+     * @param  bool  $hidden  Set to true for a network that does not show its name.
+     * @return self
+     *
+     * @throws InvalidOptionException
+     */
+    public function wifi(string $ssid, ?string $password = null, string $encryption = 'WPA', bool $hidden = false): self
+    {
+        return $this->text(Payload::wifi($ssid, $password, $encryption, $hidden));
+    }
+
+    /**
+     * Set an e-mail message as the payload.
+     *
+     * @param  string  $to
+     * @param  string|null  $subject
+     * @param  string|null  $body
+     * @param  string|string[]|null  $cc
+     * @param  string|string[]|null  $bcc
+     * @return self
+     *
+     * @throws InvalidOptionException
+     */
+    public function email(string $to, ?string $subject = null, ?string $body = null, string|array|null $cc = null, string|array|null $bcc = null): self
+    {
+        return $this->text(Payload::email($to, $subject, $body, $cc, $bcc));
+    }
+
+    /**
+     * Set a phone call as the payload.
+     *
+     * @param  string  $number
+     * @return self
+     *
+     * @throws InvalidOptionException
+     */
+    public function phone(string $number): self
+    {
+        return $this->text(Payload::phone($number));
+    }
+
+    /**
+     * Set a text message as the payload.
+     *
+     * @param  string  $number
+     * @param  string|null  $message
+     * @return self
+     *
+     * @throws InvalidOptionException
+     */
+    public function sms(string $number, ?string $message = null): self
+    {
+        return $this->text(Payload::sms($number, $message));
+    }
+
+    /**
+     * Set a geographic location as the payload.
+     *
+     * @param  float  $latitude  -90 to 90.
+     * @param  float  $longitude  -180 to 180.
+     * @param  string|null  $label
+     * @return self
+     *
+     * @throws InvalidOptionException
+     */
+    public function geo(float $latitude, float $longitude, ?string $label = null): self
+    {
+        return $this->text(Payload::geo($latitude, $longitude, $label));
+    }
+
+    /**
+     * Set a contact card (vCard 3.0) as the payload. Use named arguments.
+     *
+     * @param  string|null  $name  The full name. The default is the first and the last name.
+     * @param  string|null  $firstName
+     * @param  string|null  $lastName
+     * @param  string|null  $organization
+     * @param  string|null  $title
+     * @param  string|string[]|null  $phone
+     * @param  string|string[]|null  $email
+     * @param  string|null  $url
+     * @param  string|null  $address
+     * @param  string|null  $note
+     * @return self
+     *
+     * @throws InvalidOptionException
+     */
+    public function vcard(
+        ?string $name = null,
+        ?string $firstName = null,
+        ?string $lastName = null,
+        ?string $organization = null,
+        ?string $title = null,
+        string|array|null $phone = null,
+        string|array|null $email = null,
+        ?string $url = null,
+        ?string $address = null,
+        ?string $note = null,
+    ): self {
+        return $this->text(Payload::vcard($name, $firstName, $lastName, $organization, $title, $phone, $email, $url, $address, $note));
+    }
+
+    /**
+     * Set a calendar event (iCalendar VEVENT) as the payload.
+     *
+     * @param  string  $summary
+     * @param  DateTimeInterface|string  $start
+     * @param  DateTimeInterface|string|null  $end
+     * @param  string|null  $location
+     * @param  string|null  $description
+     * @param  bool  $allDay
+     * @return self
+     *
+     * @throws InvalidOptionException
+     */
+    public function calendar(
+        string $summary,
+        DateTimeInterface|string $start,
+        DateTimeInterface|string|null $end = null,
+        ?string $location = null,
+        ?string $description = null,
+        bool $allDay = false,
+    ): self {
+        return $this->text(Payload::calendar($summary, $start, $end, $location, $description, $allDay));
+    }
+
+    /**
+     * Set a Bitcoin payment (BIP-21) as the payload.
+     *
+     * @param  string  $address
+     * @param  float|int|string|null  $amount  In BTC.
+     * @param  string|null  $label
+     * @param  string|null  $message
+     * @return self
+     *
+     * @throws InvalidOptionException
+     */
+    public function bitcoin(string $address, float|int|string|null $amount = null, ?string $label = null, ?string $message = null): self
+    {
+        return $this->text(Payload::bitcoin($address, $amount, $label, $message));
+    }
+
+    /**
+     * Set a Litecoin payment as the payload.
+     *
+     * @param  string  $address
+     * @param  float|int|string|null  $amount  In LTC.
+     * @param  string|null  $label
+     * @param  string|null  $message
+     * @return self
+     *
+     * @throws InvalidOptionException
+     */
+    public function litecoin(string $address, float|int|string|null $amount = null, ?string $label = null, ?string $message = null): self
+    {
+        return $this->text(Payload::litecoin($address, $amount, $label, $message));
+    }
+
+    /**
+     * Set an Ethereum payment (EIP-681) as the payload.
+     *
+     * @param  string  $address
+     * @param  int|string|null  $value  In wei.
+     * @param  int|null  $chainId
+     * @return self
+     *
+     * @throws InvalidOptionException
+     */
+    public function ethereum(string $address, int|string|null $value = null, ?int $chainId = null): self
+    {
+        return $this->text(Payload::ethereum($address, $value, $chainId));
+    }
+
+    /* ── Output ────────────────────────────────────────────────── */
 
     /**
      * Get the payload.
@@ -293,10 +636,15 @@ final class QrCode
      *
      * @return bool[][]
      *
+     * @throws InvalidOptionException
      * @throws DataTooLongException
      */
     public function getMatrix(): array
     {
+        if ($this->text === '') {
+            throw new InvalidOptionException('text: expected a non-empty string - set it with text() or a content method');
+        }
+
         return $this->matrix ??= Encoder::encode($this->text, $this->options['mask'], $this->options['errorCorrection']);
     }
 
@@ -308,7 +656,7 @@ final class QrCode
      *
      * @return SvgNode
      *
-     * @throws DataTooLongException
+     * @throws QrCodeException
      */
     public function toSvgNode(): SvgNode
     {
@@ -344,7 +692,7 @@ final class QrCode
      * @param  bool  $withDeclaration  Set to true to add an XML declaration for a standalone file.
      * @return string
      *
-     * @throws DataTooLongException
+     * @throws QrCodeException
      */
     public function toSvg(bool $withDeclaration = false): string
     {

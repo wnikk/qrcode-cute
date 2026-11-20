@@ -16,7 +16,6 @@ final class OptionsTest extends TestCase
     public function test_bad_options_cause_an_exception_with_a_clear_message(): void
     {
         $cases = [
-            ['', [], '/text: expected a non-empty string/'],
             [self::TEXT, ['shape' => 'octagon'], '/shape: expected one of square, circle, triangle, hexagon - got "octagon"/'],
             [self::TEXT, ['pattern' => 'blobs'], '/pattern: expected one of/'],
             [self::TEXT, ['frame' => 'ornate'], '/frame: expected one of/'],

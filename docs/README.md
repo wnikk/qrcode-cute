@@ -103,29 +103,29 @@ new QrCode($url, [
 
 ## 5. Content types
 
-Four content types with one `Generator` design. From left to right: a Wi-Fi
-network, a contact card, a location and a Bitcoin payment. This image is a
-lossless WebP file.
+Four content types with one design. From left to right: a Wi-Fi network, a
+contact card, a location and a Bitcoin payment. This image is a lossless WebP
+file.
 
 ![Four hexagonal QR codes with a blue frame: a Wi-Fi network, a contact card, a location and a Bitcoin payment](example5-content-types.webp)
 
 ```php
-$generator = (new Generator())
+$design = (new QrCode)
     ->shape('hexagon')
     ->frame('thin')
     ->pattern('rounded')
     ->color('#0f172a')
     ->frameColor('#0ea5e9');
 
-$generator->make(Payload::wifi('Office', 'secret'));
-$generator->make(Payload::vcard(firstName: 'Ivan', lastName: 'Petrov', phone: '+15551234567', email: 'ivan@example.com'));
-$generator->make(Payload::geo(55.751244, 37.618423, 'Red Square'));
-$generator->make(Payload::bitcoin('bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq', '0.0012', 'Shop'));
+$design->wifi('Office', 'secret');
+$design->vcard(firstName: 'Ivan', lastName: 'Petrov', phone: '+15551234567', email: 'ivan@example.com');
+$design->geo(55.751244, 37.618423, 'Red Square');
+$design->bitcoin('bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq', '0.0012', 'Shop');
 ```
 
-The `make()` method gives a `QrCode` object. To get the image data, use
-`generate()` or the content type methods, for example
-`$generator->format('webp')->wifi('Office', 'secret')`.
+Each content method gives a new `QrCode` object. The `$design` object does
+not change. To get the image data, use an output method, for example
+`$design->wifi('Office', 'secret')->toWebp(512)`.
 
 ## 6. Error correction
 

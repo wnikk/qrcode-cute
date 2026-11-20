@@ -24,7 +24,7 @@ final class SquareRenderer
     public static function render(Context $ctx, array $matrix): SvgNode
     {
         $n = count($matrix);
-        $m = $ctx->moduleSize = 10;
+        $m = Context::MODULE;
         $quiet = 4;
 
         $qrSize = ($n + $quiet * 2) * $m;
@@ -32,10 +32,17 @@ final class SquareRenderer
         $shellPad = $m * 2;
         $total = $qrSize + 2 * $shellPad;
 
-        $svg = Primitives::makeSvg($total, $ctx->background, $m * 2.5);
-        $svg->setAttribute('shape-rendering', 'geometricPrecision');
+        $svg = Primitives::svg($total, $total);
+        if ($ctx->background !== 'transparent') {
+            $card = new SvgNode('rect');
+            $card->setAttribute('width', $total);
+            $card->setAttribute('height', $total);
+            $card->setAttribute('rx', $m * 2.5);
+            $card->setAttribute('fill', $ctx->background);
+            $svg->appendChild($card);
+        }
 
-        $g = Primitives::el('g');
+        $g = new SvgNode('g');
         $g->setAttribute('transform', 'translate('.$shellPad.','.$shellPad.')');
         $svg->appendChild($g);
 

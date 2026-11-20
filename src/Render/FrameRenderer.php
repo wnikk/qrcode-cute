@@ -33,18 +33,14 @@ final class FrameRenderer
             throw new \LogicException('The frame artwork is not known: '.$frameKey);
         }
         $n = count($matrix);
-        $m = $ctx->moduleSize = 10;
+        $m = Context::MODULE;
         $box = Frames::DESIGN_BOX;
 
-        $svg = Primitives::el('svg');
-        $svg->setAttribute('id', 'qr-code');
-        $svg->setAttribute('viewBox', '0 0 '.Frames::CARD_BOX.' '.Frames::CARD_BOX);
-        $svg->setAttribute('shape-rendering', 'geometricPrecision');
+        $svg = Primitives::svg(Frames::CARD_BOX, Frames::CARD_BOX);
         Frames::appendBgCard($svg, $spec['shape'], $ctx->background);
 
         // Put all artwork in a 420 group in the centre of the 440 card.
-        $root = Primitives::el('g');
-        $root->setAttribute('id', 'QR-code');
+        $root = new SvgNode('g');
         $root->setAttribute('transform', 'translate('.Frames::CARD_PAD.','.Frames::CARD_PAD.')');
         $svg->appendChild($root);
 
@@ -65,11 +61,11 @@ final class FrameRenderer
             // Use one scale for the two axes, so the modules stay square. Keep a gap of approximately 9 units on each side.
             $gap = 18;
             $scale = min(
-                (($spec['innerW'] ?? Frames::DESIGN_QR) - $gap) / ($fill['halfW'] * 2),
-                (($spec['innerH'] ?? Frames::DESIGN_QR) - $gap) / ($fill['halfH'] * 2)
+                ($spec['innerW'] - $gap) / ($fill['halfW'] * 2),
+                ($spec['innerH'] - $gap) / ($fill['halfH'] * 2)
             );
             $tx = $box / 2 - ($w / 2) * $scale;
-            $ty = ($spec['cy'] ?? $box / 2) - ($h / 2) * $scale;
+            $ty = $spec['cy'] - ($h / 2) * $scale;
             self::place($root, $shape, $tx, $ty, $scale);
         } elseif ($content === 'tri') {
             $shape = TriangleRenderer::render($ctx, $matrix);
@@ -86,8 +82,7 @@ final class FrameRenderer
             $quiet = 2;
             $scale = Frames::DESIGN_QR / ($n * $m);
             $t = Frames::DESIGN_OFF - $scale * $quiet * $m;
-            $g = Primitives::el('g');
-            $g->setAttribute('id', 'Code');
+            $g = new SvgNode('g');
             $g->setAttribute('transform', self::transform($t, $t, $scale));
             $root->appendChild($g);
             Primitives::drawData($ctx, $g, $matrix, $quiet * $m, $quiet * $m);
@@ -95,12 +90,11 @@ final class FrameRenderer
         }
 
         $frameFill = $ctx->frameFill();
-        $layer = Primitives::el('g');
-        $layer->setAttribute('id', 'Frame');
+        $layer = new SvgNode('g');
         $root->appendChild($layer);
 
         foreach ($spec['paths'] ?? [] as $p) {
-            $path = Primitives::el('path');
+            $path = new SvgNode('path');
             $path->setAttribute('d', $p['d']);
             if (isset($p['fillRule'])) {
                 $path->setAttribute('fill-rule', $p['fillRule']);
@@ -109,15 +103,9 @@ final class FrameRenderer
             $layer->appendChild($path);
         }
         foreach ($spec['strokes'] ?? [] as $st) {
-            $el = Primitives::el($st['el']);
-            if ($st['el'] === 'circle') {
-                $el->setAttribute('cx', $st['cx']);
-                $el->setAttribute('cy', $st['cy']);
-                $el->setAttribute('r', $st['r']);
-            } else {
-                $el->setAttribute('d', $st['d']);
-                $el->setAttribute('stroke-linejoin', 'round');
-            }
+            $el = new SvgNode('path');
+            $el->setAttribute('d', $st['d']);
+            $el->setAttribute('stroke-linejoin', 'round');
             $el->setAttribute('fill', 'none');
             $el->setAttribute('stroke', $frameFill);
             $el->setAttribute('stroke-width', $st['strokeWidth']);
@@ -155,8 +143,7 @@ final class FrameRenderer
         if (isset($shape->meta['bgShell'])) {
             $shape->meta['bgShell']->remove();
         }
-        $g = Primitives::el('g');
-        $g->setAttribute('id', 'Code');
+        $g = new SvgNode('g');
         $g->setAttribute('transform', self::transform($tx, $ty, $scale));
         $g->adoptChildrenOf($shape);
         $root->appendChild($g);

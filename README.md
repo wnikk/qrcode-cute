@@ -32,7 +32,6 @@ Features:
 - [Quick start](#quick-start)
 - [Usage](#usage)
 - [Content types](#content-types)
-- [Generator](#generator)
 - [Laravel](#laravel)
 - [Options](#options)
 - [Error correction](#error-correction)
@@ -76,20 +75,35 @@ the `src/` directory. Only the `src/` directory is necessary.
 
 ## Quick start
 
+`QrCode` is the only class that you need. Make a code in one call:
+
 ```php
 use Wnikk\QrCodeCute\QrCode;
 
-$qr = new QrCode('https://example.com', [
-    'shape'   => 'circle',
-    'frame'   => 'organic',
-    'pattern' => 'rounded',
-    'color'   => '#1d4ed8',
-]);
+echo QrCode::svg('https://example.com', ['shape' => 'circle']);
 
-$qr->save('qr.svg');          // The file extension sets the format.
-$qr->save('qr.png', 1024);    // A PNG file, 1024 x 1024 pixels.
-$qr->save('qr.webp', 1024);   // A lossless WebP file.
+$png = QrCode::png('https://example.com', ['shape' => 'circle'], 512);
+$webp = QrCode::webp('https://example.com', ['shape' => 'circle'], 512);
 ```
+
+Or set the design with the fluent setters:
+
+```php
+$qr = (new QrCode)
+    ->shape('hexagon')
+    ->frame('thin')
+    ->pattern('rounded')
+    ->color('#0f172a')
+    ->wifi('Office', 'secret');
+
+$qr->save('wifi.svg');          // The file extension sets the format.
+$qr->save('wifi.png', 1024);    // A PNG file, 1024 x 1024 pixels.
+$qr->save('wifi.webp', 1024);   // A lossless WebP file.
+```
+
+The constructor also accepts the text and an options array:
+`new QrCode('https://example.com', ['shape' => 'circle'])`. The two ways
+give the same code.
 
 ## Usage
 
@@ -115,14 +129,6 @@ $data = $qr->render('webp', 512);     // The format as a parameter: svg, png or 
 $type = QrCode::mimeType('webp');     // 'image/webp'
 ```
 
-### Static methods
-
-```php
-$svg = QrCode::svg('https://example.com', ['shape' => 'hexagon']);
-$png = QrCode::png('https://example.com', ['shape' => 'hexagon'], 600);
-$webp = QrCode::webp('https://example.com', ['shape' => 'hexagon'], 600);
-```
-
 ### Data URIs
 
 ```php
@@ -135,24 +141,31 @@ echo '<img src="'.$qr->toDataUri('webp', 300).'" alt="QR code">';
 ```php
 header('Content-Type: '.QrCode::mimeType('png'));
 header('Cache-Control: public, max-age=86400');
-echo QrCode::png($url, ['shape' => 'circle'], 512);
+echo (new QrCode($url, ['shape' => 'circle']))->toPng(512);
 ```
 
 The same options always give the same image. Thus you can keep the response
 in a cache.
 
-### Variants of one design
+### One design for many codes
 
-The `with()` method gives a copy with changed options. The original object
-does not change.
+A `QrCode` object is immutable. Each setter, `text()` and each content method
+give a new object. The original object does not change. Thus one object can
+keep your design:
 
 ```php
-$brand = new QrCode('https://example.com', ['color' => '#be123c', 'frame' => 'thin']);
+$brand = (new QrCode)->color('#be123c')->frame('thin');
+
+$brand->text('https://example.com/a')->save('a.png', 800);
+$brand->text('https://example.com/b')->save('b.png', 800);
 
 foreach (QrCode::SHAPES as $shape) {
-    $brand->with(['shape' => $shape])->save("qr-$shape.png", 800);
+    $brand->shape($shape)->text('https://example.com')->save("qr-$shape.png", 800);
 }
 ```
+
+The `with()` method changes many options at once:
+`$brand->with(['shape' => 'circle', 'pattern' => 'stars'])`.
 
 ### Changes to the SVG tree
 
@@ -180,30 +193,31 @@ $matrix = $qr->getMatrix();   // bool[][]: the value true is a dark module.
 
 ## Content types
 
-The `Payload` class makes the text for the usual content types. Each method
-gives a string. Give the string to `QrCode` or to `Generator`. Use named
-arguments for the optional parameters. A bad value causes an
-`InvalidOptionException`.
+A content method sets the payload text in the correct format. Then use an
+output method. Use named arguments for the optional parameters. A bad value
+causes an `InvalidOptionException`.
 
 ```php
-use Wnikk\QrCodeCute\Payload;
-use Wnikk\QrCodeCute\QrCode;
+$qr = (new QrCode)->shape('circle')->wifi('Office', 'secret');
 
-$qr = new QrCode(Payload::wifi('Office', 'secret'), ['shape' => 'circle']);
+echo $qr;                       // The SVG.
+$png = $qr->toPng(512);
+$text = $qr->getText();         // 'WIFI:T:WPA;S:Office;P:secret;;'
 ```
 
-| Method | Example | Result |
+| Method | Example | Payload text |
 | --- | --- | --- |
-| `wifi()` | `Payload::wifi('Office', 'secret')` | `WIFI:T:WPA;S:Office;P:secret;;` |
-| `email()` | `Payload::email('info@example.com', subject: 'Hello')` | `mailto:info@example.com?subject=Hello` |
-| `phone()` | `Payload::phone('+1 555 123 4567')` | `tel:+15551234567` |
-| `sms()` | `Payload::sms('+15551234567', 'Meet at 5')` | `SMSTO:+15551234567:Meet at 5` |
-| `geo()` | `Payload::geo(55.751244, 37.618423)` | `geo:55.751244,37.618423` |
-| `vcard()` | `Payload::vcard(firstName: 'Ivan', lastName: 'Petrov', phone: '+15551234567')` | `BEGIN:VCARD` … `END:VCARD` (vCard 3.0) |
-| `calendar()` | `Payload::calendar('Meeting', '2026-12-01 10:00 UTC', location: 'Room 1')` | `BEGIN:VEVENT` … `END:VEVENT` |
-| `bitcoin()` | `Payload::bitcoin('bc1q…', 0.0012, label: 'Shop')` | `bitcoin:bc1q…?amount=0.0012&label=Shop` (BIP 21) |
-| `litecoin()` | `Payload::litecoin('ltc1q…', '1.5')` | `litecoin:ltc1q…?amount=1.5` |
-| `ethereum()` | `Payload::ethereum('0x8920…43e7', '1000000000000000000', chainId: 1)` | `ethereum:0x8920…43e7@1?value=1000000000000000000` (EIP 681) |
+| `wifi()` | `->wifi('Office', 'secret')` | `WIFI:T:WPA;S:Office;P:secret;;` |
+| `email()` | `->email('info@example.com', subject: 'Hello')` | `mailto:info@example.com?subject=Hello` |
+| `phone()` | `->phone('+1 555 123 4567')` | `tel:+15551234567` |
+| `sms()` | `->sms('+15551234567', 'Meet at 5')` | `SMSTO:+15551234567:Meet at 5` |
+| `geo()` | `->geo(55.751244, 37.618423)` | `geo:55.751244,37.618423` |
+| `vcard()` | `->vcard(firstName: 'Ivan', lastName: 'Petrov', phone: '+15551234567')` | `BEGIN:VCARD` … `END:VCARD` (vCard 3.0) |
+| `calendar()` | `->calendar('Meeting', '2026-12-01 10:00 UTC', location: 'Room 1')` | `BEGIN:VEVENT` … `END:VEVENT` |
+| `bitcoin()` | `->bitcoin('bc1q…', 0.0012, label: 'Shop')` | `bitcoin:bc1q…?amount=0.0012&label=Shop` (BIP 21) |
+| `litecoin()` | `->litecoin('ltc1q…', '1.5')` | `litecoin:ltc1q…?amount=1.5` |
+| `ethereum()` | `->ethereum('0x8920…43e7', '1000000000000000000', chainId: 1)` | `ethereum:0x8920…43e7@1?value=1000000000000000000` (EIP 681) |
+| `text()` | `->text('Any text')` | `Any text` |
 
 Some details:
 
@@ -215,83 +229,48 @@ Some details:
 - `bitcoin()` and `litecoin()`: give the amount as a string for an exact decimal value.
 - `ethereum()`: the value is in wei, as an integer. Give a large value as a string.
 
-## Generator
-
-`Generator` is a fluent builder. It keeps the options, the size and the
-format for many codes. Each setter gives a new instance. Thus one instance
-can be a shared service.
-
-```php
-use Wnikk\QrCodeCute\Generator;
-
-$generator = (new Generator())
-    ->shape('circle')
-    ->frame('thin')
-    ->color('#1d4ed8')
-    ->format('webp')
-    ->size(512);
-
-$webp = $generator->generate('https://example.com');
-$generator->generate('https://example.com', 'qr.webp');   // Also writes the file.
-$uri = $generator->dataUri('https://example.com');
-$type = $generator->mimeType();                            // 'image/webp'
-```
-
-The setters are: `shape()`, `frame()`, `pattern()`, `eyeShape()`, `color()`,
-`background()`, `eyeColor()`, `frameColor()`, `errorCorrection()`, `seed()`,
-`mask()`, `withOptions()`, `size()` and `format()`. The constructor accepts
-the same values: `new Generator($options, $size, $format)`.
-
-The generator has a method for each content type. These methods have the
-same parameters as the `Payload` methods and give the image data:
-
-```php
-$png = $generator->format('png')->wifi('Office', 'secret');
-$svg = $generator->vcard(firstName: 'Ivan', lastName: 'Petrov', email: 'ivan@example.com');
-```
-
-The `make()` method gives a `QrCode` object with the options of the
-generator.
-
 ## Laravel
 
 The library has a service provider. Laravel finds it automatically. The
-provider registers `Generator` in the container as a shared instance. You do
-not need other configuration.
+provider registers `QrCode` in the container as a shared object with the
+default design. You do not need other configuration.
 
 ```php
 use Illuminate\Http\Response;
-use Wnikk\QrCodeCute\Generator;
+use Wnikk\QrCodeCute\QrCode;
 
 class QrCodeController
 {
-    public function show(Generator $generator): Response
+    public function show(QrCode $qr): Response
     {
-        $generator = $generator->shape('hexagon')->format('png')->size(512);
+        $png = $qr->shape('hexagon')->text(url('/'))->toPng(512);
 
-        return response($generator->generate(url('/')))
-            ->header('Content-Type', $generator->mimeType());
+        return response($png)->header('Content-Type', QrCode::mimeType('png'));
     }
 }
 ```
 
+The shared object does not change, because each setter gives a new object.
+
 In a Blade template, write the SVG without escaping:
 
 ```blade
-{!! app(\Wnikk\QrCodeCute\Generator::class)->generate($url) !!}
+{!! QrCode::svg($url, ['shape' => 'circle']) !!}
 ```
 
-To set your design in one location, bind the generator in a service
+Add `use Wnikk\QrCodeCute\QrCode;` to the template, or write the full class
+name. To set your design in one location, bind the object in a service
 provider of your application:
 
 ```php
-$this->app->singleton(Generator::class, fn () => new Generator(['shape' => 'circle', 'color' => '#1d4ed8']));
+$this->app->singleton(QrCode::class, fn () => (new QrCode)->shape('circle')->color('#1d4ed8'));
 ```
 
 ## Options
 
-All options are optional. An unknown option or value causes an exception.
-The library does not replace a bad value with a default.
+All options are optional. Each option has a setter with the same name, for
+example `->eyeColor('#db2777')`. An unknown option or value causes an
+exception. The library does not replace a bad value with a default.
 
 | Option | Type | Default | Values |
 | --- | --- | --- | --- |
@@ -423,7 +402,7 @@ All exceptions of the library use the interface
 use Wnikk\QrCodeCute\Exception\QrCodeException;
 
 try {
-    $png = QrCode::png($input, $options, 512);
+    $png = (new QrCode($input, $options))->toPng(512);
 } catch (QrCodeException $e) {
     // Show $e->getMessage() to the user.
 }
@@ -450,7 +429,7 @@ A version 40 code at level L (2953 bytes) decoded with the `square` shape, the
 `square` pattern and an image size of 2400 pixels. With the `dots` pattern, it
 did not decode.
 
-All content types decoded to the same text that the `Payload` methods make.
+All content types decoded to the same text that the content methods make.
 The WebP files decoded with the same result as the PNG files.
 
 Contrast is important. A light code on a light background does not cause an

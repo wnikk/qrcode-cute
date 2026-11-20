@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Wnikk\QrCodeCute\Render;
 
-use Wnikk\QrCodeCute\Svg\Num;
 use Wnikk\QrCodeCute\Svg\SvgNode;
 
 /**
@@ -25,7 +24,7 @@ final class CircleRenderer
     public static function render(Context $ctx, array $matrix): SvgNode
     {
         $n = count($matrix);
-        $m = $ctx->moduleSize = 10;
+        $m = Context::MODULE;
 
         $quiet = 4;    // real quiet zone, in modules
         $contPad = 4;  // decorative band beyond the quiet zone, in modules
@@ -50,22 +49,17 @@ final class CircleRenderer
         $safeX1 = $qrX0 + $n * $m + $m * 0.5;
         $safeY1 = $qrY0 + $n * $m + $m * 0.5;
 
-        $svg = Primitives::el('svg');
-        $svg->setAttribute('id', 'qr-code');
-        $svg->setAttribute('viewBox', '0 0 '.Num::fmt($total).' '.Num::fmt($total));
-        $svg->setAttribute('shape-rendering', 'geometricPrecision');
-
-        $bgCircle = Primitives::el('circle');
-        $bgCircle->setAttribute('cx', $cx);
-        $bgCircle->setAttribute('cy', $cy);
-        $bgCircle->setAttribute('r', $innerR + $shellPad);
-        $bgCircle->setAttribute('fill', $ctx->background);
-        $svg->appendChild($bgCircle);
-        // A frame has its own card. It removes this shell.
-        $svg->meta['bgShell'] = $bgCircle;
-
-        $contG = Primitives::el('g');
-        $contG->setAttribute('fill', $ctx->color);
+        $svg = Primitives::svg($total, $total);
+        if ($ctx->background !== 'transparent') {
+            $disc = new SvgNode('circle');
+            $disc->setAttribute('cx', $cx);
+            $disc->setAttribute('cy', $cy);
+            $disc->setAttribute('r', $innerR + $shellPad);
+            $disc->setAttribute('fill', $ctx->background);
+            $svg->appendChild($disc);
+            // A frame has its own card. It removes this disc.
+            $svg->meta['bgShell'] = $disc;
+        }
 
         $scanPad = max($quiet + $contPad, (int) ceil(($innerR - ($n / 2) * $m) / $m)) + 1;
         $zoneWidth = $innerR - ($n / 2) * $m;
@@ -97,18 +91,14 @@ final class CircleRenderer
                     continue;
                 }
 
-                $cell = ['gi' => $gi, 'gj' => $gj, 'pcx' => $pcx, 'pcy' => $pcy, 'dotR' => 4.0];
-                if ($ctx->pattern === 'star') {
-                    $cell['dotR'] = $ctx->rand($gi, $gj) < 0.5 ? 4.0 : 2.8;
-                } else {
-                    $cell['dotR'] = max(4.0 + ($ctx->rand($gj * 7, $gi * 11) - 0.5) * 0.5, 3.2);
-                }
-                $cells[] = $cell;
+                $cells[] = ['gi' => $gi, 'gj' => $gj, 'pcx' => $pcx, 'pcy' => $pcy, 'dotR' => Primitives::fillRadius($ctx, $gi, $gj)];
             }
         }
 
-        Primitives::drawContinuation($ctx, $contG, $cells);
-        $svg->appendChild($contG);
+        $fill = new SvgNode('g');
+        $fill->setAttribute('fill', $ctx->color);
+        Primitives::drawCells($ctx, $fill, $cells);
+        $svg->appendChild($fill);
 
         Primitives::drawData($ctx, $svg, $matrix, $qrX0, $qrY0);
         Primitives::drawFinderEyes($ctx, $svg, $n, $qrX0, $qrY0);

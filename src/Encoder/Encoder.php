@@ -353,34 +353,21 @@ final class Encoder
      */
     private function createCodewords(string $data): array
     {
-        $bits = [];
-        $put = static function (int $value, int $length) use (&$bits): void {
-            for ($i = $length - 1; $i >= 0; $i--) {
-                $bits[] = ($value >> $i) & 1;
-            }
-        };
-
-        $put(self::MODE_BYTE, 4);
-        $put(strlen($data), self::countBits($this->version));
+        $bits = sprintf('%04b', self::MODE_BYTE);
+        $bits .= sprintf('%0'.self::countBits($this->version).'b', strlen($data));
         foreach (unpack('C*', $data) ?: [] as $byte) {
-            $put($byte, 8);
+            $bits .= sprintf('%08b', $byte);
         }
 
-        $capacityBits = self::dataCodewordCount($this->version, $this->level) * 8;
-        if (count($bits) + 4 <= $capacityBits) {
-            $put(0, 4);
+        // Add the terminator if there is space, then fill the last byte with zeros.
+        $dataCount = self::dataCodewordCount($this->version, $this->level);
+        if (strlen($bits) + 4 <= $dataCount * 8) {
+            $bits .= '0000';
         }
-        while (count($bits) % 8 !== 0) {
-            $bits[] = 0;
-        }
-        $pad = [self::PAD0, self::PAD1];
-        for ($i = 0; count($bits) < $capacityBits; $i++) {
-            $put($pad[$i % 2], 8);
-        }
-
-        $bytes = [];
-        foreach (array_chunk($bits, 8) as $chunk) {
-            $bytes[] = (int) bindec(implode('', $chunk));
+        $bits = str_pad($bits, (int) ceil(strlen($bits) / 8) * 8, '0');
+        $bytes = array_map(static fn (string $byte): int => (int) bindec($byte), str_split($bits, 8));
+        for ($i = 0; count($bytes) < $dataCount; $i++) {
+            $bytes[] = $i % 2 === 0 ? self::PAD0 : self::PAD1;
         }
 
         $offset = 0;
@@ -455,7 +442,39 @@ final class Encoder
      */
     private static function reedSolomon(array $data, int $ecCount): array
     {
-        // The generator polynomial is the product of (x - a^i) for i < ecCount.
+        $gen = self::generatorLogs($ecCount);
+        $rem = array_merge($data, array_fill(0, $ecCount, 0));
+        $dataCount = count($data);
+        for ($i = 0; $i < $dataCount; $i++) {
+            $lead = $rem[$i];
+            if ($lead === 0) {
+                continue;
+            }
+            $ratio = self::$log[$lead];
+            foreach ($gen as $j => $logCoef) {
+                $rem[$i + $j] ^= self::$exp[($logCoef + $ratio) % 255];
+            }
+        }
+
+        return array_slice($rem, $dataCount);
+    }
+
+    /**
+     * Get the generator polynomial for a number of error correction codewords.
+     *
+     * The polynomial is the product of (x - a^i) for i < $ecCount. The result keeps
+     * the logarithm of each coefficient. The coefficients of this polynomial are never 0.
+     *
+     * @param  int  $ecCount
+     * @return int[]
+     */
+    private static function generatorLogs(int $ecCount): array
+    {
+        static $cache = [];
+        if (isset($cache[$ecCount])) {
+            return $cache[$ecCount];
+        }
+
         $gen = [1];
         for ($i = 0; $i < $ecCount; $i++) {
             $next = array_fill(0, count($gen) + 1, 0);
@@ -468,22 +487,7 @@ final class Encoder
             $gen = $next;
         }
 
-        $rem = array_merge($data, array_fill(0, $ecCount, 0));
-        $dataCount = count($data);
-        for ($i = 0; $i < $dataCount; $i++) {
-            $lead = $rem[$i];
-            if ($lead === 0) {
-                continue;
-            }
-            $ratio = self::$log[$lead];
-            foreach ($gen as $j => $coef) {
-                if ($coef !== 0) {
-                    $rem[$i + $j] ^= self::gexp(self::$log[$coef] + $ratio);
-                }
-            }
-        }
-
-        return array_slice($rem, $dataCount);
+        return $cache[$ecCount] = array_map(static fn (int $coef): int => self::$log[$coef], $gen);
     }
 
     /* ── Matrix layout ─────────────────────────────────────────── */
@@ -769,81 +773,77 @@ final class Encoder
     }
 
     /**
-     * Gives the penalty score of the current matrix. A lower score is better.
+     * Get the penalty score of the current matrix. A lower score is better.
      *
      * @return float
      */
     private function penalty(): float
     {
         $n = $this->size;
-        $m = [];
-        foreach ($this->modules as $r => $row) {
+        $rows = [];
+        $cols = array_fill(0, $n, '');
+        foreach ($this->modules as $row) {
+            $line = '';
             foreach ($row as $c => $v) {
-                $m[$r][$c] = (bool) $v;
+                $bit = $v ? '1' : '0';
+                $line .= $bit;
+                $cols[$c] .= $bit;
             }
+            $rows[] = $line;
         }
-        $lost = 0.0;
 
         // Rule 1: a module with more than five neighbours of the same colour.
-        for ($row = 0; $row < $n; $row++) {
-            for ($col = 0; $col < $n; $col++) {
-                $same = 0;
-                $dark = $m[$row][$col];
-                for ($r = -1; $r <= 1; $r++) {
-                    if ($row + $r < 0 || $n <= $row + $r) {
-                        continue;
-                    }
-                    for ($c = -1; $c <= 1; $c++) {
-                        if ($col + $c < 0 || $n <= $col + $c || ($r === 0 && $c === 0)) {
-                            continue;
-                        }
-                        if ($dark === $m[$row + $r][$col + $c]) {
-                            $same++;
-                        }
-                    }
-                }
-                if ($same > 5) {
-                    $lost += 3 + $same - 5;
-                }
+        // The 3 x 3 window is a 9-character key; "2" is outside the matrix.
+        static $rule1 = [];
+        $edge = str_repeat('2', $n + 2);
+        $padded = [$edge];
+        foreach ($rows as $line) {
+            $padded[] = '2'.$line.'2';
+        }
+        $padded[] = $edge;
+        $lost = 0.0;
+        for ($r = 1; $r <= $n; $r++) {
+            $up = $padded[$r - 1];
+            $mid = $padded[$r];
+            $down = $padded[$r + 1];
+            for ($c = 0; $c < $n; $c++) {
+                $key = substr($up, $c, 3).substr($mid, $c, 3).substr($down, $c, 3);
+                $lost += $rule1[$key] ??= self::sameNeighbourPenalty($key);
             }
         }
 
-        // Rule 2: a 2 x 2 block of one colour.
-        for ($row = 0; $row < $n - 1; $row++) {
-            for ($col = 0; $col < $n - 1; $col++) {
-                $count = (int) $m[$row][$col] + (int) $m[$row + 1][$col]
-                    + (int) $m[$row][$col + 1] + (int) $m[$row + 1][$col + 1];
-                if ($count === 0 || $count === 4) {
-                    $lost += 3;
-                }
-            }
+        // Rule 2: a 2 x 2 block of one colour. XOR gives "\0" where two modules are equal.
+        for ($r = 0; $r < $n - 1; $r++) {
+            $a = $rows[$r];
+            $v = $a ^ $rows[$r + 1];
+            $blocks = substr($v, 0, -1) | substr($v, 1) | (substr($a, 0, -1) ^ substr($a, 1));
+            $lost += 3 * substr_count($blocks, "\0");
         }
 
-        // Rule 3: a pattern that looks like a finder (1:1:3:1:1).
-        for ($row = 0; $row < $n; $row++) {
-            for ($col = 0; $col < $n - 6; $col++) {
-                if ($m[$row][$col] && ! $m[$row][$col + 1] && $m[$row][$col + 2] && $m[$row][$col + 3]
-                    && $m[$row][$col + 4] && ! $m[$row][$col + 5] && $m[$row][$col + 6]) {
-                    $lost += 40;
-                }
-            }
-        }
-        for ($col = 0; $col < $n; $col++) {
-            for ($row = 0; $row < $n - 6; $row++) {
-                if ($m[$row][$col] && ! $m[$row + 1][$col] && $m[$row + 2][$col] && $m[$row + 3][$col]
-                    && $m[$row + 4][$col] && ! $m[$row + 5][$col] && $m[$row + 6][$col]) {
-                    $lost += 40;
-                }
+        // Rule 3: a pattern that looks like a finder (1:1:3:1:1). The lookahead counts overlaps.
+        foreach ([$rows, $cols] as $lines) {
+            foreach ($lines as $line) {
+                $lost += 40 * preg_match_all('/(?=1011101)/', $line);
             }
         }
 
         // Rule 4: the balance of dark and light modules.
-        $darkCount = 0;
-        foreach ($m as $row) {
-            $darkCount += count(array_filter($row));
-        }
+        $darkCount = substr_count(implode('', $rows), '1');
         $lost += abs(100 * $darkCount / $n / $n - 50) / 5 * 10;
 
         return $lost;
+    }
+
+    /**
+     * Get the rule 1 penalty for a 3 x 3 window.
+     *
+     * @param  string  $window  Nine characters: "0" light, "1" dark, "2" outside the matrix.
+     * @return int
+     */
+    private static function sameNeighbourPenalty(string $window): int
+    {
+        $same = substr_count($window, $window[4]) - 1;
+
+        return $same > 5 ? $same - 2 : 0;
     }
 }
